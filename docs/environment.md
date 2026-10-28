@@ -12,7 +12,7 @@ Read-only inspection of the existing VM; nothing installed or changed.
 |---|---|
 | Mac | MacBook Air M2, 8 GB RAM |
 | Virtualizer | UTM 5.0.8 (QEMU backend), "Shared Network" |
-| Existing share | 9p/VirtFS tag `share` → `/mnt/doppelbot` (the `doppelbot` project) |
+| Existing share | 9p/VirtFS tag `share` → `/mnt/doppelbot` (the `doppelbot` project); only one share is possible |
 
 ### VM
 
@@ -63,6 +63,14 @@ Final choices are recorded in `docs/decisions.md` once installation and a phase-
 
 ## Repo access from the VM
 
-The Mac is the source of truth. Planned: a **second UTM shared folder** for `~/Desktop/nico/openfactory-ai`, mounted in the VM at `/mnt/openfactory-ai`, leaving the `doppelbot` share untouched. The colcon workspace lives outside the share, at `~/openfactory_ws` in the VM.
+The Mac is the source of truth. UTM 5.0.8 (QEMU backend) offers a single VirtFS shared folder, so both projects live in `~/Desktop/nico/ros_2_projects/` (`doppelbot/`, `openfactory-ai/`) and that folder is the share:
 
-Status: not configured yet. Whether UTM 5.0.8's QEMU backend allows a second VirtFS share from the GUI is unverified; fallback is rsync from the Mac over SSH.
+| Mac | VM |
+|---|---|
+| `~/Desktop/nico/ros_2_projects` | `/mnt/ros_2_projects` (9p, tag `share`, in `/etc/fstab`) |
+| `~/Desktop/nico/ros_2_projects/openfactory-ai` | `/mnt/openfactory-ai` → symlink to `/mnt/ros_2_projects/openfactory-ai` |
+| `~/Desktop/nico/ros_2_projects/doppelbot` | `/mnt/doppelbot` → symlink to `/mnt/ros_2_projects/doppelbot` |
+
+The colcon workspace lives outside the share, at `~/openfactory_ws` in the VM.
+
+Status: folders moved on the Mac 2026-10-28; UTM share and VM mount not verified yet.

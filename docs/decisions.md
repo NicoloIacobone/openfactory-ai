@@ -15,11 +15,11 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Decision:** README, docs, code and commits in English; the assistant talks to the user in Italian.
 - **Status:** accepted.
 
-## D-003 — Repo reaches the VM through a second UTM shared folder
+## D-003 — Repo reaches the VM through one shared `ros_2_projects` folder
 
-- **Context:** the VM already shares only `doppelbot`; sharing all of `~/Desktop/nico` would expose unrelated personal files.
-- **Decision:** a dedicated share for `openfactory-ai` mounted at `/mnt/openfactory-ai`; colcon workspace outside it in `~/openfactory_ws`.
-- **Status:** proposed — feasibility in UTM 5.0.8 to be verified; fallback rsync over SSH.
+- **Context:** the VM already shared only `doppelbot`; UTM allows a single shared folder, and sharing all of `~/Desktop/nico` would expose unrelated personal files.
+- **Decision:** both projects move into `~/Desktop/nico/ros_2_projects/`, shared as `/mnt/ros_2_projects`; `/mnt/openfactory-ai` and `/mnt/doppelbot` are symlinks into it, so existing VM paths keep working. Colcon workspace outside the share in `~/openfactory_ws`.
+- **Status:** accepted; VM mount to be verified.
 
 ## D-004 — Robot arm
 

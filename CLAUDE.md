@@ -40,7 +40,7 @@ A phase starts only after the previous one is closed, and closes only when its m
 - **Audit before changing.** The stack in `docs/environment.md` is chosen from evidence. Before installing or changing anything in the VM, read it; if the environment looks different, re-audit and update it. Never install, upgrade or migrate only to match a document. Never propose an Ubuntu release upgrade or a ROS distro migration.
 - **Memory is the main constraint.** One robot, small world, primitive objects, downsampled point clouds, headless simulator when the GUI is not needed, RViz only when needed. No heavy model training locally; keep batch benchmarks separate from interactive simulation. Prefer binary apt packages to source builds of large stacks.
 - `ros2`, `colcon`, `apt`, `gz` and `rviz2` run only in the VM. Git runs only on the Mac.
-- How the repo reaches the VM (second UTM shared folder) is still being set up: see `docs/environment.md`, "Repo access from the VM".
+- The repo lives on the Mac in `~/Desktop/nico/ros_2_projects/openfactory-ai`. The VM mounts the UTM share `ros_2_projects` at `/mnt/ros_2_projects`; `/mnt/openfactory-ai` is a symlink into it. Details: `docs/environment.md`, "Repo access from the VM".
 
 Commands in the VM over SSH (only commands that terminate: build, test, `ros2 topic echo --once`, `ros2 pkg list`):
 

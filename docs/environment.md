@@ -73,4 +73,4 @@ The Mac is the source of truth. UTM 5.0.8 (QEMU backend) offers a single VirtFS 
 
 The colcon workspace lives outside the share, at `~/openfactory_ws` in the VM.
 
-Status: folders moved on the Mac 2026-10-28; UTM share and VM mount not verified yet.
+Status: verified 2026-10-28 (mount, symlinks, `doppelbot` build and 214 tests pass through the new paths); original fstab kept as `/etc/fstab.bak`.

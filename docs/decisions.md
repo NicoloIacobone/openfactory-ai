@@ -19,7 +19,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 
 - **Context:** the VM already shared only `doppelbot`; UTM allows a single shared folder, and sharing all of `~/Desktop/nico` would expose unrelated personal files.
 - **Decision:** both projects move into `~/Desktop/nico/ros_2_projects/`, shared as `/mnt/ros_2_projects`; `/mnt/openfactory-ai` and `/mnt/doppelbot` are symlinks into it, so existing VM paths keep working. Colcon workspace outside the share in `~/openfactory_ws`.
-- **Status:** accepted; VM mount to be verified.
+- **Status:** accepted, verified 2026-10-28.
 
 ## D-004 — Robot arm
 

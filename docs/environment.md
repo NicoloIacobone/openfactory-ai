@@ -68,9 +68,32 @@ After install: 2.8 GiB RAM available idle, 15 GB disk free.
 
 Regression check: `doppelbot` rebuilt and tested with its venv active (its README procedure: `source ~/ros2_ws/.venv/bin/activate`, `python -m colcon`), 214 tests, 0 failures, 0 skipped. Building it with the system `colcon` instead rewrites its entry-point shebangs to `/usr/bin/python3` and breaks the `kociemba` solver.
 
+### Rendering probe
+
+OpenGL (`glxinfo -B` on the VM session, `DISPLAY=:0`, `XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.*`):
+
+| Renderer | OpenGL |
+|---|---|
+| `virgl` (virtio GPU, default) | 2.1 compatibility, max core profile 0.0 |
+| `llvmpipe` (`LIBGL_ALWAYS_SOFTWARE=1`) | 4.5 core |
+
+Gazebo, physics only: `gz sim -s -r --iterations 2000 empty.sdf` runs in 4.3 s, 118 MB max RSS, no display needed.
+
+Gazebo, RGB-D: a minimal world with a static `rgbd_camera` (320×240, 5 Hz) facing a 0.5 m box whose near face is 0.75 m away; one message read from `/rgbd/image` and `/rgbd/depth_image` with `gz topic -e -n 1`.
+
+| Render engine | Context | Result |
+|---|---|---|
+| `ogre2` | `--headless-rendering` (EGL) | segfault in Ogre-Next while creating materials |
+| `ogre2` | EGL + `LIBGL_ALWAYS_SOFTWARE=1` | segfault; EGL refuses software rendering on an explicitly selected device |
+| `ogre2` | Xwayland `:0` + `LIBGL_ALWAYS_SOFTWARE=1` | same segfault (Ogre-Next still goes through EGL) |
+| `ogre` | `--headless-rendering` | fails: Ogre 1 needs an X display |
+| `ogre` | Xwayland `:0`, `virgl` | works: RGB `RGB_INT8` and depth `R_FLOAT32` at 320×240; center depth 0.750 m (expected 0.75), depth finite only on the box; RGB flat-shaded (2 distinct values); ~216 MB RSS; segfaults on shutdown after SIGTERM |
+
+Consequence: decision D-005 in `docs/decisions.md`. Sensor simulations need the VM graphical session logged in.
+
 ### Not yet verified
 
-- Gazebo running: a minimal world, headless and with GUI; an RGB-D sensor rendering through the virtio GPU; OpenGL version (`glxinfo`).
+- Gazebo GUI with `--render-engine ogre`.
 - RAM with simulator + MoveIt 2 + RViz running together (likely the binding constraint on 3.8 GiB).
 - Open3D via pip on aarch64 / Python 3.12.
 
@@ -79,7 +102,7 @@ Regression check: `doppelbot` rebuilt and tested with its venv active (its READM
 | Area | Choice | Why |
 |---|---|---|
 | OS / ROS | Ubuntu 24.04 + ROS 2 Jazzy, as installed | Already working and healthy; no migration needed |
-| Simulator | Gazebo Harmonic (Sim 8.15) via `ros-jazzy-ros-gz` (installed, not yet run) | Official Jazzy pairing, binary on aarch64 |
+| Simulator | Gazebo Harmonic (Sim 8.15) via `ros-jazzy-ros-gz`, render engine `ogre` (D-005) | Official Jazzy pairing, binary on aarch64; `ogre2` does not run on the virtio GPU |
 | Planning | MoveIt 2 2.12.4 (installed, not yet run) | Binary on aarch64 |
 | Robot | open until phase 1; UR5e is the strongest candidate | Full apt stack (description, Gazebo sim, MoveIt config) exists for Jazzy; Franka would need a source build |
 

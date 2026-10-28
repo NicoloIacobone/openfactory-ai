@@ -1,0 +1,23 @@
+# colcon
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Run outputs: trial logs, bags, datasets, model weights
+data/
+*.db3
+*.mcap
+*.pt
+*.pth
+*.onnx
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

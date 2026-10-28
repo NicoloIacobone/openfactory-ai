@@ -4,7 +4,7 @@ A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recover
 
 The first deliverable is an **autonomous random bin-picking cell**; it is designed to grow into a production line and later a multi-robot factory.
 
-> Status: **phase 0, environment audit.** Nothing runs yet. See `docs/environment.md`.
+> Status: **phase 1, robot simulation.** Phase 0 (environment audit) is closed; see `docs/environment.md`.
 
 ## Roadmap
 

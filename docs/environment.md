@@ -91,11 +91,12 @@ Gazebo, RGB-D: a minimal world with a static `rgbd_camera` (320×240, 5 Hz) faci
 
 Consequence: decision D-005 in `docs/decisions.md`. Sensor simulations need the VM graphical session logged in.
 
-### Not yet verified
+### Deferred at phase 0 closure (2026-10-28)
 
-- Gazebo GUI with `--render-engine ogre`.
-- RAM with simulator + MoveIt 2 + RViz running together (likely the binding constraint on 3.8 GiB).
-- Open3D via pip on aarch64 / Python 3.12.
+Agreed with the user; each is checked in the phase that first needs it.
+
+- Phase 1: Gazebo GUI with `--render-engine ogre`; RAM with simulator + MoveIt 2 + RViz running together (likely the binding constraint on 3.8 GiB).
+- Phase 3: Open3D via pip on aarch64 / Python 3.12.
 
 ## Selected stack (provisional)
 

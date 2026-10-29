@@ -4,7 +4,8 @@
 Each goal is sampled from config ranges and accepted only if MoveIt reports it collision-free
 and tool0 clears the table. It is then planned and executed through move_group and the
 joint trajectory controller. States executed in Gazebo are recorded from /joint_states and
-re-checked by MoveIt afterwards. Logs go to data/trials/<run_id>/.
+re-checked by MoveIt afterwards. Logs go to ~/openfactory_data/trials/<run_id>/ in the VM (the
+repo share is read-only there); copy them to the repo's data/ from the Mac with scp.
 
 Run in the VM with the cell launched (openfactory_bringup cell.launch.py):
     python3 scripts/phase1_reach_test.py [--config FILE] [--seed N]
@@ -185,7 +186,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
     parser.add_argument('--seed', type=int, help='overrides the config seed')
-    parser.add_argument('--out', type=Path, default=REPO / 'data' / 'trials')
+    parser.add_argument('--out', type=Path, default=Path.home() / 'openfactory_data' / 'trials')
     args = parser.parse_args()
 
     cfg = yaml.safe_load(args.config.read_text())

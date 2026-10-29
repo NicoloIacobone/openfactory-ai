@@ -95,7 +95,7 @@ Consequence: decision D-005 in `docs/decisions.md`. Sensor simulations need the 
 
 Agreed with the user; each is checked in the phase that first needs it.
 
-- Phase 1: Gazebo GUI with `--render-engine ogre`. RAM with simulator + MoveIt 2 + RViz: measured 2026-10-29, see below.
+- Phase 1: Gazebo GUI with `--render-engine ogre` and RAM with simulator + MoveIt 2 + RViz: both checked 2026-10-29, see below.
 - Phase 3: Open3D via pip on aarch64 / Python 3.12.
 
 ## Phase 1 installation — 2026-10-29
@@ -124,16 +124,17 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 - RViz Plan & Execute succeeds through `joint_trajectory_controller`.
 - The world with the Sensors system (`render_engine` `ogre`) runs headless without `DISPLAY` while it has no sensors: `gz sim -s -r --iterations 2000`, 4.3 s, 120 MB max RSS.
 - RAM with Gazebo server + MoveIt 2 + RViz + GNOME: 1.4 GiB used, 2.4 GiB available.
+- Gazebo GUI (`headless:=false rviz:=false`, `gz sim -r --render-engine ogre` on the VM desktop): renders floor, table and arm, smooth according to the user; `gz sim gui` ≈ 400 MB RSS, `gz sim server` ≈ 190 MB; 1.5 GiB used, 2.3 GiB available.
 - Harmless log lines: `MoveItConfigsBuilder` "Cannot infer URDF/SRDF" for `ur_moveit_config` (overridden), octomap "No 3D sensor plugin(s)", RViz `/recognize_objects` not available, duplicate `rviz2_moveit` rosout publisher.
 
-## Selected stack (provisional)
+## Selected stack
 
 | Area | Choice | Why |
 |---|---|---|
 | OS / ROS | Ubuntu 24.04 + ROS 2 Jazzy, as installed | Already working and healthy; no migration needed |
 | Simulator | Gazebo Harmonic (Sim 8.15) via `ros-jazzy-ros-gz`, render engine `ogre` (D-005) | Official Jazzy pairing, binary on aarch64; `ogre2` does not run on the virtio GPU |
-| Planning | MoveIt 2 2.12.4 (installed, not yet run) | Binary on aarch64 |
-| Robot | open until phase 1; UR5e is the strongest candidate | Full apt stack (description, Gazebo sim, MoveIt config) exists for Jazzy; Franka would need a source build |
+| Planning | MoveIt 2 2.12.4, OMPL via `openfactory_moveit_config` | Binary on aarch64; E-001 10/10 |
+| Robot | UR5e (D-004) | Full apt stack (description, Gazebo sim, MoveIt config) exists for Jazzy; Franka would need a source build |
 
 Final choices are recorded in `docs/decisions.md` once installation and a phase-1 test confirm them.
 

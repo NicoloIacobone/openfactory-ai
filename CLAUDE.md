@@ -11,8 +11,8 @@ OpenFactory AI is a ROS 2 digital twin of a robotic cell that perceives a changi
 | Phase | Goal | State |
 |---|---|---|
 | 0 | Environment audit, stack choice | closed 2026-10-28: `docs/environment.md`, D-005 (Gazebo sensors need Ogre 1) |
-| 1 | Supported arm in the simulator + MoveIt 2 | in progress |
-| 2 | Deterministic pick/place at a known pose | — |
+| 1 | Supported arm in the simulator + MoveIt 2 | closed 2026-10-29: E-001 reach test 10/10, D-004 (UR5e), D-006 (cell layout) |
+| 2 | Deterministic pick/place at a known pose | next |
 | 3 | RGB-D camera, TF, calibration, geometric perception | — |
 | 4 | Random bin picking MVP with metrics | — |
 | 5 | AI and robustness: learned ranking vs baseline, recovery | — |

@@ -4,7 +4,7 @@ A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recover
 
 The first deliverable is an **autonomous random bin-picking cell**; it is designed to grow into a production line and later a multi-robot factory.
 
-> Status: **phase 1, robot simulation.** Phase 0 (environment audit) is closed; see `docs/environment.md`.
+> Status: **phase 2, deterministic pick/place.** Phase 1 is closed: a UR5e on the cell table in Gazebo Harmonic, planned by MoveIt 2 and executed through `ros2_control` (10/10 collision-free reach goals, `docs/experiments.md` E-001).
 
 ## Roadmap
 
@@ -41,4 +41,27 @@ Each phase is gated by a stable, measured previous phase.
 | `docs/experiments.md` | Trials, benchmarks, results |
 | `docs/environment.md` | Audited environment and setup |
 
-Setup and run instructions will be added with phase 1.
+## Setup
+
+Tested on Ubuntu 24.04 aarch64 with ROS 2 Jazzy (details and versions: `docs/environment.md`).
+
+```bash
+sudo apt install ros-jazzy-ros-gz ros-jazzy-moveit ros-jazzy-ur-simulation-gz ros-jazzy-ur-moveit-config
+source /opt/ros/jazzy/setup.bash
+mkdir -p ~/openfactory_ws && cd ~/openfactory_ws
+colcon build --symlink-install --base-paths <repo>/src && source install/setup.bash
+colcon test --base-paths <repo>/src && colcon test-result --verbose
+python3 -m pytest -q <repo>/tests
+```
+
+On GPUs limited to OpenGL 2.1 (e.g. the UTM virtio GPU) Gazebo uses the Ogre 1 render engine (`docs/decisions.md`, D-005); the launch files already select it.
+
+## Run
+
+```bash
+# Cell: Gazebo (headless by default), MoveIt 2 move_group, RViz
+ros2 launch openfactory_bringup cell.launch.py              # headless:=false for the Gazebo GUI, rviz:=false without RViz
+
+# Phase 1 reach test (in another terminal, with the cell running): 10 seeded goals, logs in ~/openfactory_data/trials/
+python3 <repo>/scripts/phase1_reach_test.py --seed 1
+```

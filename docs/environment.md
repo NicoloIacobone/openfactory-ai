@@ -108,7 +108,7 @@ Agreed with the user; each is checked in the phase that first needs it.
 
 - Controllers: `joint_state_broadcaster` and `scaled_joint_trajectory_controller` active; `/clock` and `/joint_states` published.
 - `MoveGroup` action from the command line: 4/4 joint goals planned with OMPL RRTConnect (including far ones), one executed through `scaled_joint_trajectory_controller` in Gazebo ("Goal reached, success!"); final joint error ≤ 0.01 rad.
-- RViz MotionPlanning "Plan & Execute" with `<random valid>` goal: 3/3 "Unable to solve the planning problem" (5 s timeout). Not explained yet; the same `move_group` solves command-line goals, so the cause is on the RViz request side.
+- **Known issue, open:** every RViz MotionPlanning request fails with "Unable to solve the planning problem" (5 s timeout): `<random valid>` and interactive-marker goals, both "Plan" and "Plan & Execute". The same `move_group` solves 11/11 command-line `MoveGroup` requests. Ruled out on the command line: goal tolerance 1e-4, RViz-style workspace bounds (2 m cube in `world` or `base_link`), 10 planning attempts, start pose, URDF/SRDF name mismatch. Not yet checked: the RViz panel settings (Context and Planning tabs). Does not block phase 1, whose closing test uses a script; recheck once the project's own MoveIt launch replaces the vendor one.
 - Harmless: URDF robot name `ur` vs SRDF `ur5e` logs "Semantic description is not specified for the same robot as the URDF"; groups and collision matrix still load (`/check_state_validity` returns valid).
 - A launch that aborts leaves `gz sim` and the `spawner` processes orphaned; kill them before relaunching.
 

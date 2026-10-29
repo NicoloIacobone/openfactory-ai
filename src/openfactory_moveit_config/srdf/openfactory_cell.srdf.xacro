@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Vendor UR SRDF (groups, named states, arm self-collision matrix) plus the cell table.
+     The robot name matches the URDF from openfactory_description. -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="ur">
+  <xacro:include filename="$(find ur_moveit_config)/srdf/ur_macro.srdf.xacro"/>
+
+  <xacro:ur_srdf/>
+
+  <!-- The base sits on the table; the shoulder only turns about the table normal above it -->
+  <disable_collisions link1="table" link2="base_link_inertia" reason="Adjacent"/>
+  <disable_collisions link1="table" link2="shoulder_link" reason="Never"/>
+</robot>

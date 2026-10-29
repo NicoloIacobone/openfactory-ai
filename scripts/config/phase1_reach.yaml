@@ -1,0 +1,41 @@
+# Phase 1 closing test: seeded joint goals planned by MoveIt and executed in Gazebo.
+seed: 1
+goals: 10
+
+group: ur_manipulator
+tip_link: tool0
+frame: world
+joints:
+  - shoulder_pan_joint
+  - shoulder_lift_joint
+  - elbow_joint
+  - wrist_1_joint
+  - wrist_2_joint
+  - wrist_3_joint
+
+# Sampling ranges (rad), inside the UR5e limits; upper arm at or above horizontal
+joint_ranges:
+  shoulder_pan_joint: [-3.14, 3.14]
+  shoulder_lift_joint: [-3.14, 0.0]
+  elbow_joint: [-2.6, 2.6]
+  wrist_1_joint: [-3.14, 3.14]
+  wrist_2_joint: [-3.14, 3.14]
+  wrist_3_joint: [-3.14, 3.14]
+
+# A goal is accepted only if MoveIt reports it collision-free and tool0 is this far above the table top (m)
+min_tool_height: 0.10
+max_samples_per_goal: 500
+
+# Planning and execution
+pipeline: ompl
+planning_time_s: 5.0
+planning_attempts: 1
+velocity_scaling: 0.3
+acceleration_scaling: 0.3
+goal_joint_tolerance: 0.001
+action_timeout_s: 120.0
+
+# Evaluation
+final_error_tolerance: 0.01     # rad, max |goal - final| over the joints
+settle_s: 1.0                   # wait after execution before reading the final state
+record_period_s: 0.1            # executed states recorded from /joint_states and re-checked

@@ -33,12 +33,21 @@ To be defined in the phase that introduces each component. Standard types first 
 
 | Name | Type | Producer → consumer | Notes |
 |---|---|---|---|
-| — | — | — | — |
+| `/clock` | `rosgraph_msgs/Clock` | Gazebo (`ros_gz_bridge`) → all nodes | `use_sim_time: true` everywhere (phase 1) |
+| `/robot_description` | `std_msgs/String` (latched) | `robot_state_publisher` → `gz_ros2_control`, RViz | cell URDF with the table (phase 1) |
+| `/joint_states` | `sensor_msgs/JointState` | `joint_state_broadcaster` → `robot_state_publisher`, `move_group` | phase 1 |
+| `/joint_trajectory_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `move_group` → `joint_trajectory_controller` | only path for arm motion (phase 1) |
+| `/move_action` | `moveit_msgs/action/MoveGroup` | clients → `move_group` | plan and execute (phase 1) |
 
 ## Frames
 
-To be fixed in phases 1 and 3. Conventions: REP 103 / REP 105, SI units, radians; camera data in `*_optical_frame`.
+Arm and cell frames fixed in phase 1; camera frames in phase 3. Conventions: REP 103 / REP 105, SI units, radians; camera data in `*_optical_frame`.
 
 | Frame | Parent | Defined by | Notes |
 |---|---|---|---|
-| `world` | — | simulation | cell floor, z up |
+| `world` | — | `openfactory_description` | cell floor, z up; origin below the robot base |
+| `table` | `world` | `openfactory_description/config/cell.yaml` | centre of the table top surface |
+| `base_link` | `world` | `cell.yaml` (`robot_mount`) | UR5e base on the table top, REP 103 |
+| `base_link_inertia` … `wrist_3_link`, `flange`, `tool0` | arm chain | `ur_description` | `tool0` is the MoveIt group tip |
+
+Cell geometry (table size and pose, robot mount) is defined once in `cell.yaml`. In Gazebo the table is a separate static model so that it collides with the arm; for `robot_state_publisher` and MoveIt it is a link of the cell URDF (`include_table:=true`), so it is in TF and in collision checking without extra nodes.

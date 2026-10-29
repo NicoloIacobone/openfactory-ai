@@ -35,3 +35,11 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Evidence:** probe 2026-10-28 (`docs/environment.md`, "Rendering probe"): `ogre2` segfaults with EGL headless, with EGL + `LIBGL_ALWAYS_SOFTWARE=1` and through Xwayland (Ogre-Next always selects the EGL hardware device, so llvmpipe's OpenGL 4.5 is never used); `ogre` through Xwayland publishes RGB and depth with correct values.
 - **Consequences:** Ogre 1 is the older engine (simpler lighting, fewer features); third-party worlds that hardcode `ogre2` (e.g. the UR Gazebo launch, phase 1) must be overridden. Revisit if the VM gets a GPU with OpenGL 3.3+.
 - **Status:** accepted for sensors; GUI not yet verified.
+
+## D-006 — Cell table from one layout file; standard joint trajectory controller
+
+- **Context:** phase 1 needs the table in Gazebo (physics), TF and the MoveIt collision world. Links of one Gazebo model do not collide with each other, so a table inside the robot model would not stop the arm physically. The vendor simulation uses `ur_controllers/ScaledJointTrajectoryController`, which only makes sense with the real robot's speed scaling.
+- **Decision:** table size/pose and robot mount live in `openfactory_description/config/cell.yaml`. The same xacro produces the robot + table URDF for `robot_state_publisher` and MoveIt, and the robot-only URDF spawned in Gazebo next to a separate static table model built from the same macro. A pytest checks both against `cell.yaml`. Arm motion uses the standard `joint_trajectory_controller`; MoveIt loads only the OMPL pipeline.
+- **Consequences:** MoveIt sees the table as a robot link (allowed collisions with `base_link_inertia` and `shoulder_link` in the SRDF), not as a planning-scene collision object. Bins and camera mount (phases 2–3) are revisited when a scene node exists. The URDF given to MoveIt differs from the RSP one only in the Gazebo controllers path.
+- **Evidence:** 2026-10-29 cell launch (`docs/environment.md`): TF matches `cell.yaml`, MoveIt rejects arm–table contact, RViz Plan & Execute runs through `joint_trajectory_controller`.
+- **Status:** accepted.

@@ -63,7 +63,7 @@ ssh doppelvm 'source /opt/ros/jazzy/setup.bash && <command>'
 
 ## Build and test
 
-No ROS packages exist yet. Expected commands (standard colcon workflow, verified on the first package; fix them here if they differ):
+Standard colcon workflow, verified on the first packages (2026-10-29):
 
 ```bash
 # [VM] build outside the shared folder

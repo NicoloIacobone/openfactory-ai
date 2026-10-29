@@ -108,11 +108,23 @@ Agreed with the user; each is checked in the phase that first needs it.
 
 - Controllers: `joint_state_broadcaster` and `scaled_joint_trajectory_controller` active; `/clock` and `/joint_states` published.
 - `MoveGroup` action from the command line: 4/4 joint goals planned with OMPL RRTConnect (including far ones), one executed through `scaled_joint_trajectory_controller` in Gazebo ("Goal reached, success!"); final joint error ≤ 0.01 rad.
-- **Known issue, open:** every RViz MotionPlanning request fails with "Unable to solve the planning problem" (5 s timeout): `<random valid>` and interactive-marker goals, both "Plan" and "Plan & Execute". The same `move_group` solves 11/11 command-line `MoveGroup` requests. Ruled out on the command line: goal tolerance 1e-4, RViz-style workspace bounds (2 m cube in `world` or `base_link`), 10 planning attempts, start pose, URDF/SRDF name mismatch. Not yet checked: the RViz panel settings (Context and Planning tabs). Does not block phase 1, whose closing test uses a script; recheck once the project's own MoveIt launch replaces the vendor one.
-- Harmless: URDF robot name `ur` vs SRDF `ur5e` logs "Semantic description is not specified for the same robot as the URDF"; groups and collision matrix still load (`/check_state_validity` returns valid).
+- **Known issue, open:** every RViz MotionPlanning request fails with "Unable to solve the planning problem" (5 s timeout): `<random valid>` and interactive-marker goals, both "Plan" and "Plan & Execute". The same `move_group` solves 11/11 command-line `MoveGroup` requests. Ruled out on the command line: goal tolerance 1e-4, RViz-style workspace bounds (2 m cube in `world` or `base_link`), 10 planning attempts, start pose, URDF/SRDF name mismatch. Not yet checked: the RViz panel settings (Context and Planning tabs). Does not block phase 1, whose closing test uses a script; recheck once the project's own MoveIt launch replaces the vendor one. **Resolved 2026-10-29 with the project launch** (`openfactory_bringup cell.launch.py`): RViz "Plan & Execute" with `<random valid>` plans (OMPL RRTConnect) and executes. Root cause not isolated; the project launch differs in loading only the OMPL pipeline (the vendor one also loads CHOMP and Pilz), its own URDF/SRDF with matching robot names, and the standard `joint_trajectory_controller`.
+- Harmless (vendor launch only; the project SRDF is named `ur`): URDF robot name `ur` vs SRDF `ur5e` logs "Semantic description is not specified for the same robot as the URDF"; groups and collision matrix still load (`/check_state_validity` returns valid).
 - A launch that aborts leaves `gz sim` and the `spawner` processes orphaned; kill them before relaunching.
 
 RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 GiB available, swap 0. Largest processes: `rviz2` 257 MB, `gz sim` 200 MB, `move_group` 105 MB, GNOME shell + Xwayland ~370 MB.
+
+## Project cell launch — 2026-10-29 (phase 1, step 3)
+
+`ros2 launch openfactory_bringup cell.launch.py` (Gazebo server, `move_group`, RViz), no new packages installed:
+
+- `joint_state_broadcaster` and `joint_trajectory_controller` active; Gazebo real-time factor ≈ 1.00.
+- TF matches `cell.yaml`: `world→table` (0.25, 0, 0.75), `world→base_link` (0, 0, 0.75).
+- `/check_state_validity`: forearm pointing down into the table is invalid (contacts `forearm_link`, `wrist_*_link` with `table`); pointing up is valid.
+- RViz Plan & Execute succeeds through `joint_trajectory_controller`.
+- The world with the Sensors system (`render_engine` `ogre`) runs headless without `DISPLAY` while it has no sensors: `gz sim -s -r --iterations 2000`, 4.3 s, 120 MB max RSS.
+- RAM with Gazebo server + MoveIt 2 + RViz + GNOME: 1.4 GiB used, 2.4 GiB available.
+- Harmless log lines: `MoveItConfigsBuilder` "Cannot infer URDF/SRDF" for `ur_moveit_config` (overridden), octomap "No 3D sensor plugin(s)", RViz `/recognize_objects` not available, duplicate `rviz2_moveit` rosout publisher.
 
 ## Selected stack (provisional)
 

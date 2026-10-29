@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  <!-- Cell table as a solid box. The `table` frame is the centre of the top surface. -->
+  <xacro:macro name="openfactory_table" params="parent cell">
+    <xacro:property name="sx" value="${cell['table']['size'][0]}"/>
+    <xacro:property name="sy" value="${cell['table']['size'][1]}"/>
+    <xacro:property name="sz" value="${cell['table']['size'][2]}"/>
+    <xacro:property name="txyz" value="${cell['table']['xyz']}"/>
+    <xacro:property name="mass" value="50.0"/>
+
+    <link name="table">
+      <visual>
+        <origin xyz="0 0 ${-sz / 2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${sx} ${sy} ${sz}"/>
+        </geometry>
+        <material name="table_grey">
+          <color rgba="0.6 0.6 0.6 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${-sz / 2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${sx} ${sy} ${sz}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 ${-sz / 2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${mass * (sy * sy + sz * sz) / 12}" ixy="0" ixz="0"
+                 iyy="${mass * (sx * sx + sz * sz) / 12}" iyz="0"
+                 izz="${mass * (sx * sx + sy * sy) / 12}"/>
+      </inertial>
+    </link>
+
+    <joint name="table_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="table"/>
+      <origin xyz="${txyz[0]} ${txyz[1]} ${txyz[2] + sz}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+</robot>

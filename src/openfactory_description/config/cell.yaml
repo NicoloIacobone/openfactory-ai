@@ -1,0 +1,10 @@
+# Cell layout: fixed infrastructure, single source for the simulator, TF and MoveIt.
+# REP 103: metres, radians, world z up.
+
+table:
+  size: [0.8, 1.2, 0.75]      # x, y, z; the top surface is at z = size[2]
+  xyz: [0.25, 0.0, 0.0]       # centre of the footprint on the floor, in world
+
+robot_mount:
+  xyz: [-0.25, 0.0, 0.0]      # robot base_link relative to the table top centre
+  rpy: [0.0, 0.0, 0.0]

@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- The table alone, spawned in Gazebo as its own model so that it collides with the arm
+     (links of a single model do not collide with each other). -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="table">
+  <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
+  <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
+
+  <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+
+  <link name="world"/>
+  <xacro:openfactory_table parent="world" cell="${cell}"/>
+</robot>

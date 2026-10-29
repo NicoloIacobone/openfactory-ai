@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<!-- UR5e mounted on the cell table, with gz_ros2_control.
+     include_table:=true  -> robot + table: robot_state_publisher, MoveIt (table is a collision link).
+     include_table:=false -> robot only: spawned in Gazebo next to the separate table model. -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="ur">
+  <xacro:arg name="ur_type" default="ur5e"/>
+  <xacro:arg name="include_table" default="true"/>
+  <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
+  <xacro:arg name="simulation_controllers" default=""/>
+
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+
+  <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
+  <xacro:property name="table_top_z" value="${cell['table']['xyz'][2] + cell['table']['size'][2]}"/>
+  <xacro:property name="mount_xyz" value="${cell['robot_mount']['xyz']}"/>
+  <xacro:property name="mount_rpy" value="${cell['robot_mount']['rpy']}"/>
+  <xacro:property name="config_dir" value="$(find ur_description)/config/$(arg ur_type)"/>
+
+  <link name="world"/>
+
+  <xacro:if value="$(arg include_table)">
+    <xacro:openfactory_table parent="world" cell="${cell}"/>
+  </xacro:if>
+
+  <!-- base_link pose in world: table top centre + mount offset (the table is not rotated) -->
+  <xacro:ur_robot
+    name="ur"
+    tf_prefix=""
+    parent="world"
+    joint_limits_parameters_file="${config_dir}/joint_limits.yaml"
+    kinematics_parameters_file="${config_dir}/default_kinematics.yaml"
+    physical_parameters_file="${config_dir}/physical_parameters.yaml"
+    visual_parameters_file="${config_dir}/visual_parameters.yaml"
+    force_abs_paths="true">
+    <origin xyz="${cell['table']['xyz'][0] + mount_xyz[0]} ${cell['table']['xyz'][1] + mount_xyz[1]} ${table_top_z + mount_xyz[2]}"
+            rpy="${mount_rpy[0]} ${mount_rpy[1]} ${mount_rpy[2]}"/>
+  </xacro:ur_robot>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg simulation_controllers)</parameters>
+    </plugin>
+  </gazebo>
+
+  <xacro:ur_ros2_control name="ur" tf_prefix=""/>
+</robot>

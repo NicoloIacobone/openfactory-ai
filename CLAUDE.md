@@ -59,7 +59,7 @@ ssh doppelvm 'source /opt/ros/jazzy/setup.bash && <command>'
 - Install commands follow the official docs (ROS 2 Jazzy, Gazebo, MoveIt 2). If unsure about a command or version, say so.
 - Ask before: installing packages, changing system configuration (Mac, VM, UTM), deleting files, changing an interface in `docs/architecture.md`, `git push`.
 - Small, descriptive commits, one per logical change.
-- Never in the repo: tokens, passwords, SSH keys, large binaries (bags, datasets, weights, meshes downloaded from third parties). Run outputs go in `data/` (git-ignored).
+- Never in the repo: tokens, passwords, SSH keys, large binaries (bags, datasets, weights, meshes downloaded from third parties). Run outputs go in `data/` (git-ignored); the VM cannot write to the share, so it writes to `~/openfactory_data/` and the Mac copies with `scp`.
 
 ## Build and test
 
@@ -72,6 +72,9 @@ colcon build --symlink-install --base-paths /mnt/openfactory-ai/src && source in
 
 # [VM] test
 colcon test --base-paths /mnt/openfactory-ai/src && colcon test-result --verbose
+
+# [VM] pure-logic tests of repo-level scripts
+cd /mnt/openfactory-ai && python3 -m pytest -q -p no:cacheprovider tests
 ```
 
 ## Architecture in brief

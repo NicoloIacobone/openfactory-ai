@@ -95,8 +95,24 @@ Consequence: decision D-005 in `docs/decisions.md`. Sensor simulations need the 
 
 Agreed with the user; each is checked in the phase that first needs it.
 
-- Phase 1: Gazebo GUI with `--render-engine ogre`; RAM with simulator + MoveIt 2 + RViz running together (likely the binding constraint on 3.8 GiB).
+- Phase 1: Gazebo GUI with `--render-engine ogre`. RAM with simulator + MoveIt 2 + RViz: measured 2026-10-29, see below.
 - Phase 3: Open3D via pip on aarch64 / Python 3.12.
+
+## Phase 1 installation — 2026-10-29
+
+`sudo apt install ros-jazzy-ur-simulation-gz ros-jazzy-ur-moveit-config`: 28 new packages, 0 upgraded, 0 removed (`ur_simulation_gz` 2.5.0, `ur_moveit_config` 3.9.0, `ur_description` 3.5.1, `gz_ros2_control` 1.2.20). Then `ros-jazzy-ur-robot-driver` 3.9.0 (10 new packages): `ur_moveit_config/launch/ur_moveit.launch.py` always starts `ur_robot_driver`'s `wait_for_robot_description` node, but its `package.xml` does not declare the dependency (upstream packaging bug), so the launch aborts without it.
+
+### UR5e smoke test (vendor launch, no project code)
+
+`ros2 launch ur_simulation_gz ur_sim_moveit.launch.py ur_type:=ur5e gazebo_gui:=false` (Gazebo server only, `gz sim -s`; RViz from the MoveIt launch):
+
+- Controllers: `joint_state_broadcaster` and `scaled_joint_trajectory_controller` active; `/clock` and `/joint_states` published.
+- `MoveGroup` action from the command line: 4/4 joint goals planned with OMPL RRTConnect (including far ones), one executed through `scaled_joint_trajectory_controller` in Gazebo ("Goal reached, success!"); final joint error ≤ 0.01 rad.
+- RViz MotionPlanning "Plan & Execute" with `<random valid>` goal: 3/3 "Unable to solve the planning problem" (5 s timeout). Not explained yet; the same `move_group` solves command-line goals, so the cause is on the RViz request side.
+- Harmless: URDF robot name `ur` vs SRDF `ur5e` logs "Semantic description is not specified for the same robot as the URDF"; groups and collision matrix still load (`/check_state_validity` returns valid).
+- A launch that aborts leaves `gz sim` and the `spawner` processes orphaned; kill them before relaunching.
+
+RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 GiB available, swap 0. Largest processes: `rviz2` 257 MB, `gz sim` 200 MB, `move_group` 105 MB, GNOME shell + Xwayland ~370 MB.
 
 ## Selected stack (provisional)
 

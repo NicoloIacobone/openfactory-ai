@@ -24,8 +24,9 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 ## D-004 — Robot arm
 
 - **Context:** the brief suggests a mature arm such as UR5e or Franka Panda.
-- **Decision:** open until phase 1. UR5e is the strongest candidate (complete Jazzy apt stack: description, Gazebo simulation, MoveIt config); Franka has no Jazzy apt package here.
-- **Status:** open.
+- **Decision:** UR5e, from the Jazzy apt packages (`ur_description`, `ur_simulation_gz`, `ur_moveit_config`); Franka has no Jazzy apt package here.
+- **Evidence:** smoke test 2026-10-29 (`docs/environment.md`): MoveIt 2 plans and executes through `scaled_joint_trajectory_controller` in Gazebo; full stack uses 1.46 GiB of 3.8 GiB.
+- **Status:** accepted. Gripper chosen in phase 2.
 
 ## D-005 — Gazebo Harmonic with the Ogre 1 render engine, sensors on the VM display
 

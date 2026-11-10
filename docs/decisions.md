@@ -61,3 +61,14 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Evidence:** pytest checks both URDF variants against `cell.yaml` (bin pose, outer envelope, free inner volume, bins inside the table top and apart). Cell launch 2026-11-10: TF `world → input_bin` (0.40, −0.30, 0.76), `world → output_bin` (0.40, 0.30, 0.76); with the gripper pointing down and `gripper_tcp` 4 cm above each bin floor, MoveIt finds a collision-free IK solution at the bin centre and none above a wall (forced solutions there collide `gripper_palm`/fingers with the bin).
 - **Consequences:** moving a bin means editing `cell.yaml` and restarting the cell; no runtime reconfiguration, which the MVP does not need.
 - **Status:** accepted.
+
+## D-009 — Object catalog, known-pose input, ground truth outside ROS
+
+- **Context:** phase 2 picks objects at a known pose before any perception exists, and needs the simulator's object poses to judge success without letting them reach perception or manipulation (rule 5).
+- **Decision:**
+  - One object catalog (`openfactory_description/config/objects.yaml`); Gazebo models are generated from it (`scripts/scene_objects.py`, pytest), so geometry has a single source.
+  - Phase 2 object poses come from a versioned trial config and are given to manipulation as fixed infrastructure input, documented as such; the harness spawns the object at that pose before the cycle. This is the known-pose baseline, not perception.
+  - The harness spawns, removes and observes objects through Gazebo Transport (`scripts/gz_scene.py`). Ground truth is read from `/world/cell/dynamic_pose/info` by the harness's evaluation code only and is not bridged to ROS.
+- **Evidence:** VM check 2026-11-10: bridging `Pose_V` to `tf2_msgs/TFMessage` drops the entity names (empty `frame_id`/`child_frame_id`), so a ROS topic would need an extra relay node; the Gazebo message carries the names. Cube, cylinder and prism spawned in the input bin rest at the expected heights (0.785, 0.800, 0.7816 m) with 0.00 mm drift in 5 s; a prism spawned standing on its triangular face rests with its origin at 0.790 m, confirming the extruded polyline is centred on the object frame; `create/blocking` and `remove/blocking` succeed.
+- **Consequences:** ground truth is not visible in RViz; trial logs carry the evaluated poses instead. CLAUDE.md rule 5 still holds: no ROS ground-truth topic exists, and any future one lives under `/ground_truth/`.
+- **Status:** accepted for phase 2.

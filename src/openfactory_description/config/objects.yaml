@@ -1,0 +1,29 @@
+# Object catalog: rigid primitives picked by the cell. Single source for the simulator models
+# (generated SDF) and for the manipulation geometry. SI units.
+#
+# Object frame: centre of the bounding box, z up when resting on the bin floor.
+#   box:              size [x, y, z]
+#   cylinder:         radius, length along z (stands on a flat face)
+#   triangular_prism: equilateral triangle of side `side` in the y-z plane (base face down),
+#                     extruded `length` along x (lies on a rectangular face)
+
+friction: 1.0                 # Gazebo mu/mu2 on every object
+
+objects:
+  cube:
+    shape: box
+    size: [0.05, 0.05, 0.05]
+    mass: 0.1
+    color: [0.8, 0.2, 0.2, 1.0]
+  cylinder:
+    shape: cylinder
+    radius: 0.025
+    length: 0.08
+    mass: 0.1
+    color: [0.2, 0.65, 0.3, 1.0]
+  prism:
+    shape: triangular_prism
+    side: 0.05
+    length: 0.06
+    mass: 0.1
+    color: [0.9, 0.75, 0.15, 1.0]

@@ -14,7 +14,7 @@ simulated RGB-D camera + robot state
   → back to perception
 ```
 
-Perception never commands joints. Simulator ground truth (`/ground_truth/...`) is consumed only by evaluation and debugging tools.
+Perception never commands joints. Simulator ground truth is consumed only by evaluation and debugging tools (see "Ground truth and scene control").
 
 ## Components
 
@@ -56,3 +56,18 @@ Arm and cell frames fixed in phase 1, gripper and floor in phase 2; camera frame
 | `gripper_tcp` | `tool0` | `gripper.yaml` (`tcp_offset`) | grasp point between the pads, +z along the tool axis (phase 2) |
 
 Cell geometry (table size and pose, robot mount, bins) is defined once in `cell.yaml`. In Gazebo the table and the bins form one separate model fixed to the world (`fixtures.urdf.xacro`) so that they collide with the arm; for `robot_state_publisher` and MoveIt they are links of the cell URDF (`include_fixtures:=true`, together with the `floor` collision box), so they are in TF and in collision checking without extra nodes. The gripper is part of the robot in every URDF variant.
+
+## Objects
+
+Rigid primitives (cube, cylinder, triangular prism) are defined once in `openfactory_description/config/objects.yaml` (shape, size, mass, colour; object frame at the bounding-box centre, z up when resting). The Gazebo models are SDF generated from it by `scripts/scene_objects.py`; manipulation reads the same catalog for object geometry.
+
+## Ground truth and scene control
+
+The trial harness talks to Gazebo directly through Gazebo Transport (`scripts/gz_scene.py`), outside the ROS graph:
+
+| Gazebo interface | Use | Who |
+|---|---|---|
+| `/world/cell/create/blocking`, `/world/cell/remove/blocking` (`gz.msgs.EntityFactory` / `Entity` → `Boolean`) | spawn and remove objects between trials | harness only |
+| `/world/cell/dynamic_pose/info` (`gz.msgs.Pose_V`, model poses in `world`) | ground truth for success evaluation and debug labels | harness evaluation only |
+
+Ground truth is not bridged to ROS (D-009): no ROS node can subscribe to it, so perception and manipulation cannot leak it. If a ROS ground-truth topic is ever needed for debugging, it lives under `/ground_truth/`.

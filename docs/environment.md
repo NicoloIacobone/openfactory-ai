@@ -135,6 +135,12 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 - `GripperCommand` goals 0 → 0.0425 → 0.02 → 0 → 0.0425: all reached, fingers within 0.2 mm of each other, after the joint-limit fix in D-007.
 - `/check_state_validity`: the home state is valid; arm and gripper pushed into the table are rejected (`gripper_palm`, fingers vs `table`). TF `tool0 → gripper_tcp` = (0, 0, 0.085).
 
+## Phase 2 objects check — 2026-11-10
+
+- Gazebo Transport Python bindings (`gz.transport13`, `gz.msgs10`) come with the ROS vendor packages (`ros-jazzy-gz-transport-vendor` 0.0.9, `ros-jazzy-gz-msgs-vendor` 0.0.8); nothing installed.
+- `/world/cell/create` and `/create/blocking` (and `remove`) both answer; the harness uses the blocking ones.
+- Results: D-009.
+
 ## Selected stack
 
 | Area | Choice | Why |

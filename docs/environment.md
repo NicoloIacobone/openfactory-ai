@@ -140,16 +140,18 @@ Final choices are recorded in `docs/decisions.md` once installation and a phase-
 
 ## Repo access from the VM
 
-The Mac is the source of truth. UTM 5.0.8 (QEMU backend) offers a single VirtFS shared folder, so both projects live in `~/Desktop/nico/ros_2_projects/` (`doppelbot/`, `openfactory-ai/`) and that folder is the share:
+The Mac is the source of truth. UTM 5.0.8 (QEMU backend) offers a single VirtFS shared folder, so both projects live in `~/Desktop/nico/github_portfolio/ros_2_projects/` (`doppelbot/`, `openfactory-ai/`) and that folder is the share:
 
 | Mac | VM |
 |---|---|
-| `~/Desktop/nico/ros_2_projects` | `/mnt/ros_2_projects` (9p, tag `share`, in `/etc/fstab`) |
-| `~/Desktop/nico/ros_2_projects/openfactory-ai` | `/mnt/openfactory-ai` → symlink to `/mnt/ros_2_projects/openfactory-ai` |
-| `~/Desktop/nico/ros_2_projects/doppelbot` | `/mnt/doppelbot` → symlink to `/mnt/ros_2_projects/doppelbot` |
+| `~/Desktop/nico/github_portfolio/ros_2_projects` | `/mnt/ros_2_projects` (9p, tag `share`, in `/etc/fstab`) |
+| `~/Desktop/nico/github_portfolio/ros_2_projects/openfactory-ai` | `/mnt/openfactory-ai` → symlink to `/mnt/ros_2_projects/openfactory-ai` |
+| `~/Desktop/nico/github_portfolio/ros_2_projects/doppelbot` | `/mnt/doppelbot` → symlink to `/mnt/ros_2_projects/doppelbot` |
 
 The colcon workspace lives outside the share, at `~/openfactory_ws` in the VM.
 
 The share is **read-only for the VM user**: files keep the Mac owner (uid 501, mode 755) and the VM user is uid 1000 (`access=client`), so `mkdir` fails with "Permission denied". Run outputs are written in the VM under `~/openfactory_data/` and copied to the repo's git-ignored `data/` from the Mac: `scp -r doppelvm:openfactory_data/trials/<run_id> data/trials/`.
 
 Status: verified 2026-10-28 (mount, symlinks, `doppelbot` build and 214 tests pass through the new paths); original fstab kept as `/etc/fstab.bak`.
+
+2026-11-10: on the Mac the share moved from `~/Desktop/nico/ros_2_projects` to `~/Desktop/nico/github_portfolio/ros_2_projects` (whole folder, same contents). The UTM shared folder must point to the new path; nothing changes inside the VM.

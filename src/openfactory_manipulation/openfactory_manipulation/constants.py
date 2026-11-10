@@ -12,7 +12,8 @@ ARM_JOINTS = (
     'shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
     'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint',
 )
-FINGER_JOINT = 'left_finger_joint'
+FINGER_JOINT = 'left_finger_joint'                      # commanded; the right one mimics it
+FINGER_JOINTS = ('left_finger_joint', 'right_finger_joint')
 
 JOINT_STATES_TOPIC = '/joint_states'
 MOVE_ACTION = '/move_action'

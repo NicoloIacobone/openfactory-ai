@@ -112,9 +112,9 @@ class PickPlacePlan:
     close_position: float
 
     @property
-    def held_position(self):
-        """Finger position expected while holding the object (half the grasp width)."""
-        return self.grasp_width / 2
+    def held_opening(self):
+        """Jaw opening (left + right finger) expected while holding the object."""
+        return self.grasp_width
 
 
 def raised(pose, dz):
@@ -163,15 +163,21 @@ def plan_pick_place(object_pose, place_bin_pose, place_xy, spec, gripper, params
     )
 
 
-def check_grasp(finger_position, plan, tolerance):
-    """None if the fingers stopped on the object, else 'grasp_failed' (missed or blocked)."""
-    if finger_position is None or abs(finger_position - plan.held_position) > tolerance:
+def check_grasp(opening, plan, tolerance):
+    """None if the jaws stopped on the object, else 'grasp_failed' (missed or blocked).
+
+    `opening` is the sum of both finger positions. The fingers need not stay symmetric: the
+    commanded finger reaches its close target and the mimic finger yields, shifting a held
+    object a few millimetres while the squeeze stays the same, so one finger alone tells
+    nothing about the grasp.
+    """
+    if opening is None or abs(opening - plan.held_opening) > tolerance:
         return 'grasp_failed'
     return None
 
 
-def check_hold(finger_position, plan, tolerance):
-    """None if the object is still between the fingers, else 'grasp_slipped'."""
-    if finger_position is None or abs(finger_position - plan.held_position) > tolerance:
+def check_hold(opening, plan, tolerance):
+    """None if the object is still between the jaws, else 'grasp_slipped' (see check_grasp)."""
+    if opening is None or abs(opening - plan.held_opening) > tolerance:
         return 'grasp_slipped'
     return None

@@ -124,6 +124,13 @@ class MoveItInterface:
     def finger_position(self):
         return None if self.latest_joints is None else self.latest_joints.get(c.FINGER_JOINT)
 
+    def jaw_opening(self):
+        """Left + right finger position (m): the distance between the pads."""
+        if self.latest_joints is None:
+            return None
+        values = [self.latest_joints.get(name) for name in c.FINGER_JOINTS]
+        return None if None in values else sum(values)
+
     def arm_positions(self):
         return [self.latest_joints[name] for name in c.ARM_JOINTS]
 

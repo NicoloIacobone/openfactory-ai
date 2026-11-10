@@ -1,9 +1,9 @@
 """ROS-free logic of the phase 1 reach test: goal sampling, errors, records, summary."""
 
-import hashlib
 import math
 import random
-from pathlib import Path
+
+from trial_log import config_hash, git_commit  # noqa: F401  (shared helpers, re-exported)
 
 # moveit_msgs/MoveItErrorCodes values mapped to the project failure reasons; others are
 # reported as moveit_error_<code>.
@@ -27,28 +27,6 @@ _EXECUTION_CODES = {
     -7,   # PREEMPTED
 }
 _TIMEOUT_CODES = {-6}  # TIMED_OUT
-
-
-def config_hash(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:12]
-
-
-def git_commit(repo_root):
-    """HEAD commit read from the .git directory (git itself runs only on the Mac)."""
-    git_dir = Path(repo_root) / '.git'
-    head = (git_dir / 'HEAD').read_text().strip()
-    if not head.startswith('ref: '):
-        return head
-    ref = head[len('ref: '):]
-    ref_file = git_dir / ref
-    if ref_file.exists():
-        return ref_file.read_text().strip()
-    packed = git_dir / 'packed-refs'
-    if packed.exists():
-        for line in packed.read_text().splitlines():
-            if line.endswith(' ' + ref):
-                return line.split()[0]
-    return 'unknown'
 
 
 def sample_joint_goal(rng: random.Random, joints, ranges):

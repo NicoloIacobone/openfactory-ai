@@ -98,7 +98,7 @@ def test_plan_pick_place_waypoints():
     assert plan.place[1] == plan.grasp[1] == plan.retreat[1]
     assert (plan.open_position, plan.preclose_position, plan.close_position) == pytest.approx(
         (0.0425, 0.030, 0.020))
-    assert plan.held_position == pytest.approx(0.025)
+    assert plan.held_opening == pytest.approx(0.05)
 
 
 def test_prism_is_grasped_across_its_length():
@@ -117,14 +117,16 @@ def test_too_wide_object_is_refused():
                            GRIPPER, PARAMS)
 
 
-def test_grasp_and_hold_checks():
+def test_grasp_and_hold_checks_use_the_jaw_opening():
     obj = pp.object_pose_in_bin(IN_BIN, 0.0, 0.0, 0.0, CUBE)
     plan = pp.plan_pick_place(obj, OUT_BIN, (0.0, 0.0), CUBE, GRIPPER, PARAMS)
-    assert pp.check_grasp(0.0245, plan, 0.003) is None
-    assert pp.check_grasp(0.020, plan, 0.003) == 'grasp_failed'     # closed past the object
-    assert pp.check_grasp(None, plan, 0.003) == 'grasp_failed'
-    assert pp.check_hold(0.0255, plan, 0.003) is None
-    assert pp.check_hold(0.0199, plan, 0.003) == 'grasp_slipped'
+    assert plan.held_opening == pytest.approx(0.05)
+    assert pp.check_grasp(0.0239 + 0.0240, plan, 0.004) is None
+    # asymmetric but still squeezing (left at its target, mimic finger yielded): held
+    assert pp.check_hold(0.0200 + 0.0298, plan, 0.004) is None
+    assert pp.check_grasp(0.020 + 0.020, plan, 0.004) == 'grasp_failed'   # closed on nothing
+    assert pp.check_grasp(None, plan, 0.004) == 'grasp_failed'
+    assert pp.check_hold(0.040, plan, 0.004) == 'grasp_slipped'
 
 
 @pytest.mark.parametrize('code, reason', [

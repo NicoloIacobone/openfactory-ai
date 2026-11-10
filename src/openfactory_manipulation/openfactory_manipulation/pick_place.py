@@ -71,15 +71,16 @@ class PickPlace:
 
     def _gripper(self, name, position):
         result, seconds = self.moveit.gripper(position, self.cfg['grasp']['max_effort'])
-        finger = self.moveit.finger_position()
-        extra = {'finger_position': finger, 'stalled': result.stalled,
-                 'reached_goal': result.reached_goal}
-        return finger, extra, seconds
+        opening = self.moveit.jaw_opening()
+        extra = {'finger_position': self.moveit.finger_position(), 'jaw_opening': opening,
+                 'stalled': result.stalled, 'reached_goal': result.reached_goal}
+        return opening, extra, seconds
 
-    def _check_fingers(self, name, check, plan, extra=None):
-        finger = self.moveit.finger_position()
-        reason = check(finger, plan, self.cfg['grasp']['width_tolerance'])
-        self._record(name, reason, finger_position=finger, **(extra or {}))
+    def _check_fingers(self, name, check, plan):
+        opening = self.moveit.jaw_opening()
+        reason = check(opening, plan, self.cfg['grasp']['width_tolerance'])
+        self._record(name, reason, jaw_opening=opening,
+                     finger_position=self.moveit.finger_position())
 
     # -- cycle ----------------------------------------------------------------------------
 
@@ -88,7 +89,7 @@ class PickPlace:
         self.stages = []
         spec = self.catalog['objects'][object_type]
         start = time.monotonic()
-        failure, recovered = None, None
+        failure, recovered, grasp = None, None, None
         try:
             in_bin = self.moveit.frame_pose(c.INPUT_BIN_FRAME)
             out_bin = self.moveit.frame_pose(c.OUTPUT_BIN_FRAME)
@@ -96,6 +97,8 @@ class PickPlace:
             object_pose = core.object_pose_in_bin(in_bin, x, y, yaw, spec)
             plan = core.plan_pick_place(object_pose, out_bin, self.cfg['place']['xy'], spec,
                                         self.gripper_cfg, params)
+            grasp = {'type': 'top_down', 'frame': c.WORLD_FRAME, 'tcp_xyz': list(plan.grasp[0]),
+                     'tcp_quat': list(plan.grasp[1]), 'width_m': plan.grasp_width}
             self._cycle(plan, spec, object_id)
         except StageFailed as error:
             failure = error.reason
@@ -109,6 +112,7 @@ class PickPlace:
             'object_type': object_type,
             'object_id': object_id,
             'known_pose': {'frame': c.INPUT_BIN_FRAME, 'x': x, 'y': y, 'yaw': yaw},
+            'grasp': grasp,
             'success': failure is None,
             'failure_reason': failure,
             'failed_stage': next((s['stage'] for s in self.stages if not s['ok']), None),
@@ -124,7 +128,7 @@ class PickPlace:
         self.moveit.remove_object(object_id)          # leftovers of an interrupted cycle
 
         self._joint_move('ready', ready)
-        finger, extra, seconds = self._gripper('open', plan.open_position)
+        _, extra, seconds = self._gripper('open', plan.open_position)
         self._record('open', None if extra['reached_goal'] else 'gripper_failed',
                      execution_s=seconds, **extra)
 
@@ -135,11 +139,11 @@ class PickPlace:
         self._free_move('pre_grasp', plan.pre_grasp)
         self._line('approach', plan.grasp)
 
-        finger, extra, seconds = self._gripper('preclose', plan.preclose_position)
+        _, extra, seconds = self._gripper('preclose', plan.preclose_position)
         self._record('preclose', None if extra['reached_goal'] else 'gripper_failed',
                      execution_s=seconds, **extra)
-        finger, extra, seconds = self._gripper('close', plan.close_position)
-        reason = core.check_grasp(finger, plan, self.cfg['grasp']['width_tolerance'])
+        opening, extra, seconds = self._gripper('close', plan.close_position)
+        reason = core.check_grasp(opening, plan, self.cfg['grasp']['width_tolerance'])
         self._record('close', reason, execution_s=seconds, **extra)
 
         ok = self.moveit.attach_object(object_id)
@@ -153,7 +157,7 @@ class PickPlace:
         self._check_fingers('hold_after_transfer', core.check_hold, plan)
         self._line('descend', plan.place)
 
-        finger, extra, seconds = self._gripper('release', plan.open_position)
+        _, extra, seconds = self._gripper('release', plan.open_position)
         self._record('release', None if extra['reached_goal'] else 'gripper_failed',
                      execution_s=seconds, **extra)
         ok = self.moveit.remove_object(object_id)

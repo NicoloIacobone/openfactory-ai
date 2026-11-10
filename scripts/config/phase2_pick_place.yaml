@@ -1,0 +1,18 @@
+# Phase 2 closing test (E-002): deterministic pick and place at known object poses.
+seed: 1                       # phase 2 has no randomness; recorded so every run names its seed
+trials_per_object: 10         # objects interleaved: cube, cylinder, prism, cube, ...
+
+# Known poses in the input_bin frame (fixed infrastructure input, D-009): x, y in m, yaw in rad
+objects:
+  cube: {x: 0.0, y: 0.0, yaw: 0.0}
+  cylinder: {x: 0.05, y: 0.03, yaw: 0.0}
+  prism: {x: -0.04, y: -0.02, yaw: 0.5}
+
+pick_place_config: null       # null: openfactory_manipulation/config/pick_place.yaml
+
+evaluation:
+  settle_s: 1.0               # after spawning and after the cycle, before reading ground truth
+  spawn_tolerance_m: 0.003    # the object must rest this close to its known pose before a cycle
+  max_tilt_rad: 0.1           # placed object upright
+  rest_height_m: 0.005        # placed object on the destination floor
+  record_period_s: 0.1        # executed states sampled from /joint_states and re-checked by MoveIt

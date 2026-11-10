@@ -27,7 +27,7 @@ grasp:
   palm_clearance: 0.003              # m, palm above the object top
   preclose_margin: 0.005             # m per finger: first close stops this far from the object
   squeeze_depth: 0.005               # m per finger: close target inside the object (holding force)
-  width_tolerance: 0.003             # m per finger: fingers must stop this close to half the width
+  width_tolerance: 0.004             # m: jaw opening (left + right finger) vs object width
   max_effort: 20.0                   # N, GripperCommand max_effort
   settle_s: 0.3                      # s, wait after a gripper action before reading the fingers
 

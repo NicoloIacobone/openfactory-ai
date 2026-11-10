@@ -1,29 +1,17 @@
 """ROS-free scene helpers: object catalog geometry, generated SDF models, spawn poses.
 
 The catalog is openfactory_description/config/objects.yaml and the cell layout is
-openfactory_description/config/cell.yaml; both are passed in as loaded dicts.
+openfactory_description/config/cell.yaml; both are passed in as loaded dicts. Catalog geometry
+and quaternions come from openfactory_manipulation.core (ROS-free), so the simulator models and
+the manipulation code share one implementation.
 """
 
 import math
 from xml.sax.saxutils import escape
 
-SHAPES = ('box', 'cylinder', 'triangular_prism')
-
-
-def _prism_height(spec):
-    return spec['side'] * math.sqrt(3.0) / 2.0
-
-
-def bounding_box(spec):
-    """Axis-aligned size [x, y, z] in the object frame (centred on the object origin)."""
-    shape = spec['shape']
-    if shape == 'box':
-        return list(spec['size'])
-    if shape == 'cylinder':
-        return [2 * spec['radius'], 2 * spec['radius'], spec['length']]
-    if shape == 'triangular_prism':
-        return [spec['length'], spec['side'], _prism_height(spec)]
-    raise ValueError(f'unknown shape {shape!r}')
+from openfactory_manipulation.core.geometry import quat_from_rpy as quaternion_from_rpy  # noqa: F401
+from openfactory_manipulation.core.objects import SHAPES, bounding_box  # noqa: F401
+from openfactory_manipulation.core.objects import prism_height as _prism_height
 
 
 def inertia(spec):
@@ -125,13 +113,3 @@ def spawn_pose(cell, bin_name, spec, x, y, yaw, drop=0.002):
     ox, oy, oz = bin_origin(cell, bin_name)
     return [ox + x, oy + y, oz + bounding_box(spec)[2] / 2 + drop], yaw
 
-
-def quaternion_from_rpy(roll, pitch, yaw):
-    """(x, y, z, w) for R = Rz(yaw) Ry(pitch) Rx(roll), the SDF/URDF convention."""
-    cr, sr = math.cos(roll / 2), math.sin(roll / 2)
-    cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
-    cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
-    return (sr * cp * cy - cr * sp * sy,
-            cr * sp * cy + sr * cp * sy,
-            cr * cp * sy - sr * sp * cy,
-            cr * cp * cy + sr * sp * sy)

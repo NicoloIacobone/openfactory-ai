@@ -1,5 +1,8 @@
 import sys
 from pathlib import Path
 
-# ROS-free modules of the repo-level scripts
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+REPO = Path(__file__).resolve().parents[1]
+
+# ROS-free modules: repo-level scripts and the pure core of openfactory_manipulation
+sys.path.insert(0, str(REPO / 'scripts'))
+sys.path.insert(0, str(REPO / 'src' / 'openfactory_manipulation'))

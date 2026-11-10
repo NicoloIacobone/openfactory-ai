@@ -72,3 +72,16 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Evidence:** VM check 2026-11-10: bridging `Pose_V` to `tf2_msgs/TFMessage` drops the entity names (empty `frame_id`/`child_frame_id`), so a ROS topic would need an extra relay node; the Gazebo message carries the names. Cube, cylinder and prism spawned in the input bin rest at the expected heights (0.785, 0.800, 0.7816 m) with 0.00 mm drift in 5 s; a prism spawned standing on its triangular face rests with its origin at 0.790 m, confirming the extruded polyline is centred on the object frame; `create/blocking` and `remove/blocking` succeed.
 - **Consequences:** ground truth is not visible in RViz; trial logs carry the evaluated poses instead. CLAUDE.md rule 5 still holds: no ROS ground-truth topic exists, and any future one lives under `/ground_truth/`.
 - **Status:** accepted for phase 2.
+
+## D-010 — Phase 2 motion strategy: separate plan/execute, straight lines near objects
+
+- **Context:** the deterministic pick-and-place cycle must be collision-aware (rule 4), split planning and execution time (E-001 note), and hold objects that are gripped by friction only (D-007).
+- **Decision:**
+  - Free-space moves (ready, pre-grasp, back to ready) are OMPL plans through `/move_action` with `plan_only`, executed separately through `/execute_trajectory`.
+  - Every move near or with an object is a collision-checked straight `tool0` line from `/compute_cartesian_path` (approach, lift, transfer at lift height, descend, retreat) and must be ≥ 99 % feasible. The transfer is a line, not a free plan, so the tool stays vertical: in the first trial a free-space transfer let the cube pivot out between the pads (`grasp_slipped` after transfer).
+  - The object enters the planning scene at its known pose (raised 2 mm so it does not touch the bin floor), is attached to `gripper_tcp` by id with the gripper links as touch links, and is detached and removed after release. Attaching by id already moves the object out of the world; removing it in the same diff makes the whole request fail.
+  - Grasp evidence: the left finger must stop within 3 mm of half the grasp width after closing (`grasp_failed`) and after lift and transfer (`grasp_slipped`).
+  - On a failure the cycle stops and recovers: open, clear the scene object, straight rise, joint move to ready. A free plan out of a bin is rejected by MoveIt's ValidateSolution (fingers graze the walls between OMPL's checked states).
+- **Evidence:** `pick_place_once` 2026-11-10 in the running cell: cube, cylinder and prism each picked and placed at the first attempt (20.0, 20.8, 25.1 s, planning ≈ 0.3 s of it); empty-bin cycle ends in `grasp_failed` at `close` and recovers to ready.
+- **Consequences:** the straight transfer assumes bins reachable along a line at lift height, true for this cell; later phases with arbitrary placements may need orientation path constraints instead. Objects land about 1 cm off the place point along the finger axis (release pushes them); the closing test measures it.
+- **Status:** accepted for phase 2.

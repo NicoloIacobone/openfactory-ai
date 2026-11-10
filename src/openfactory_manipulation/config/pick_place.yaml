@@ -1,0 +1,43 @@
+# Deterministic top-down pick and place (phase 2). SI units, radians.
+
+# Arm configuration at the start and end of every cycle: gripper_tcp 0.29 m above the bin floors,
+# between the bins, pointing down (MoveIt IK 2026-11-10).
+ready_joints: [-0.3397, -1.8188, 2.0501, -1.8021, -1.5708, -1.9105]
+
+planning:
+  pipeline: ompl
+  planning_time_s: 5.0
+  attempts: 3
+  velocity_scaling: 0.3
+  acceleration_scaling: 0.3
+  position_tolerance: 0.001          # m, tool0 pose goals
+  orientation_tolerance: 0.01        # rad
+  joint_tolerance: 0.001             # rad, joint goals
+
+cartesian:                           # approach, lift, descend, retreat: straight lines
+  velocity_scaling: 0.1
+  acceleration_scaling: 0.1
+  max_step: 0.005                    # m between interpolated waypoints
+  min_fraction: 0.99                 # of the path that must be feasible
+
+grasp:
+  approach_distance: 0.10            # m, pre-grasp and retreat above the grasp/place TCP
+  lift_height: 0.15                  # m, lift and pre-place above the grasp/place TCP
+  floor_clearance: 0.005             # m, fingertips above the surface under the object
+  palm_clearance: 0.003              # m, palm above the object top
+  preclose_margin: 0.005             # m per finger: first close stops this far from the object
+  squeeze_depth: 0.005               # m per finger: close target inside the object (holding force)
+  width_tolerance: 0.003             # m per finger: fingers must stop this close to half the width
+  max_effort: 20.0                   # N, GripperCommand max_effort
+  settle_s: 0.3                      # s, wait after a gripper action before reading the fingers
+
+place:
+  xy: [0.0, 0.0]                     # m, object centre in the output_bin frame
+  release_clearance: 0.005           # m, object bottom above the destination floor at release
+
+scene:
+  object_clearance: 0.002            # m, planning-scene object raised above the floor it rests on
+
+timeouts:
+  server_s: 10.0                     # waiting for MoveIt / controllers
+  action_s: 60.0                     # one planning or execution request

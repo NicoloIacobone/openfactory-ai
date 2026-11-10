@@ -24,6 +24,8 @@ Perception never commands joints. Simulator ground truth is consumed only by eva
 | `grasp_selector` | `openfactory_manipulation` | object poses/geometry, point cloud, robot state | ranked feasible grasp candidates |
 | `task_planner` | `openfactory_manipulation` | best grasp, destination bin, task state | MoveIt requests, next action |
 | `robot_executor` | `openfactory_manipulation` | trajectories, gripper commands | execution result, state |
+
+Phase 2 implements `task_planner` and `robot_executor` as a library (`openfactory_manipulation.pick_place.PickPlace`, pure logic in `core/`) driven by the trial harness or `ros2 run openfactory_manipulation pick_place_once`; the object pose is the known-pose input of D-009, not a perception output.
 | `scene_manager` | `openfactory_manipulation` | prior state, perception update, action result | updated scene/task state, recovery request |
 | `factory_manager` | later | production goals, station states | task assignments (not in the MVP) |
 
@@ -38,6 +40,10 @@ To be defined in the phase that introduces each component. Standard types first 
 | `/joint_states` | `sensor_msgs/JointState` | `joint_state_broadcaster` → `robot_state_publisher`, `move_group` | phase 1 |
 | `/joint_trajectory_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `move_group` → `joint_trajectory_controller` | only path for arm motion (phase 1) |
 | `/move_action` | `moveit_msgs/action/MoveGroup` | clients → `move_group` | plan and execute (phase 1) |
+| `/move_action` (`plan_only`) | `moveit_msgs/action/MoveGroup` | `openfactory_manipulation` → `move_group` | free-space plans to joint or `tool0` pose goals; executed separately (phase 2) |
+| `/compute_cartesian_path` | `moveit_msgs/srv/GetCartesianPath` | `openfactory_manipulation` → `move_group` | straight `tool0` lines: approach, lift, transfer, descend, retreat (phase 2) |
+| `/execute_trajectory` | `moveit_msgs/action/ExecuteTrajectory` | `openfactory_manipulation` → `move_group` | executes planned trajectories through `joint_trajectory_controller` (phase 2) |
+| `/apply_planning_scene` | `moveit_msgs/srv/ApplyPlanningScene` | `openfactory_manipulation` → `move_group` | object added at its known pose, attached to `gripper_tcp` on grasp, removed on release (phase 2) |
 | `/gripper_controller/gripper_cmd` | `control_msgs/action/GripperCommand` | manipulation → `gripper_controller` | `position` = left finger joint = half the jaw opening (m); stalling on an object succeeds (phase 2) |
 
 ## Frames

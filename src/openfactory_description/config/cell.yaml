@@ -8,3 +8,15 @@ table:
 robot_mount:
   xyz: [-0.25, 0.0, 0.0]      # robot base_link relative to the table top centre
   rpy: [0.0, 0.0, 0.0]
+
+# Open-top bins standing on the table. xy: centre relative to the table top centre (the robot
+# base is at x = -0.25); inner_size: x, y, wall height above the bin floor. The bin frames
+# (input_bin, output_bin) are the centre of the inner floor surface.
+bin_wall: 0.01                # wall and floor thickness
+bins:
+  input:
+    xy: [0.15, -0.30]
+    inner_size: [0.30, 0.22, 0.10]
+  output:
+    xy: [0.15, 0.30]
+    inner_size: [0.30, 0.22, 0.10]

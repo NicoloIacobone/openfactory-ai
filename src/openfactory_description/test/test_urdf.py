@@ -43,7 +43,7 @@ def test_cell_robot(include_fixtures):
     root = _urdf('openfactory_cell.urdf.xacro', include_fixtures=include_fixtures)
     links = {link.get('name') for link in root.findall('link')}
 
-    for fixture in ('floor', 'table'):
+    for fixture in ('floor', 'table', 'input_bin', 'output_bin'):
         assert (fixture in links) == (include_fixtures == 'true')
     for name in ARM_JOINTS:
         assert _joint(root, name).get('type') == 'revolute'
@@ -66,8 +66,8 @@ def test_cell_robot(include_fixtures):
     assert _xyz(mount) == pytest.approx(expected)
 
 
-def test_table_model_matches_cell_table():
-    standalone = _urdf('table.urdf.xacro')
+def test_fixtures_model_matches_cell_table():
+    standalone = _urdf('fixtures.urdf.xacro')
     in_cell = _urdf('openfactory_cell.urdf.xacro', include_fixtures='true')
 
     for root in (standalone, in_cell):
@@ -78,6 +78,62 @@ def test_table_model_matches_cell_table():
             [table['xyz'][0], table['xyz'][1], table['xyz'][2] + table['size'][2]])
         size = root.find("link[@name='table']/collision/geometry/box").get('size')
         assert [float(v) for v in size.split()] == pytest.approx(table['size'])
+
+
+def _boxes(root, link):
+    """(centre xyz, size) of every collision box of a link, in the link frame."""
+    boxes = []
+    for collision in root.findall(f"link[@name='{link}']/collision"):
+        size = [float(v) for v in collision.find('geometry/box').get('size').split()]
+        boxes.append((_xyz(collision), size))
+    return boxes
+
+
+@pytest.mark.parametrize('urdf, mappings', [
+    ('fixtures.urdf.xacro', {}),
+    ('openfactory_cell.urdf.xacro', {'include_fixtures': 'true'}),
+])
+@pytest.mark.parametrize('name', ['input', 'output'])
+def test_bin_matches_cell_yaml(urdf, mappings, name):
+    root = _urdf(urdf, **mappings)
+    spec, wall = CELL['bins'][name], CELL['bin_wall']
+    ix, iy, h = spec['inner_size']
+
+    joint = _joint(root, f'{name}_bin_joint')
+    assert joint.find('parent').get('link') == 'table'
+    # the bin frame is the inner floor surface: one wall thickness above the table top
+    assert _xyz(joint) == pytest.approx([spec['xy'][0], spec['xy'][1], wall])
+
+    boxes = _boxes(root, f'{name}_bin')
+    assert len(boxes) == 5
+    lows = [[c[i] - s[i] / 2 for i in range(3)] for c, s in boxes]
+    highs = [[c[i] + s[i] / 2 for i in range(3)] for c, s in boxes]
+    # outer envelope: floor under the frame, walls up to the inner height
+    assert [min(v[i] for v in lows) for i in range(3)] == pytest.approx(
+        [-ix / 2 - wall, -iy / 2 - wall, -wall])
+    assert [max(v[i] for v in highs) for i in range(3)] == pytest.approx(
+        [ix / 2 + wall, iy / 2 + wall, h])
+    # the inner volume is free: no box reaches inside it above the floor
+    for low, high in zip(lows, highs):
+        eps = 1e-9  # boxes may touch the inner faces, not overlap them
+        inside = all(low[i] < bound - eps and high[i] > -bound + eps
+                     for i, bound in ((0, ix / 2), (1, iy / 2)))
+        assert not (inside and high[2] > eps), f'box {low}..{high} intrudes into the bin'
+
+
+def test_bins_on_table_and_apart():
+    table = CELL['table']['size']
+    wall = CELL['bin_wall']
+    footprints = []
+    for spec in CELL['bins'].values():
+        ix, iy, _ = spec['inner_size']
+        x, y = spec['xy']
+        footprint = (x - ix / 2 - wall, x + ix / 2 + wall, y - iy / 2 - wall, y + iy / 2 + wall)
+        assert -table[0] / 2 <= footprint[0] and footprint[1] <= table[0] / 2
+        assert -table[1] / 2 <= footprint[2] and footprint[3] <= table[1] / 2
+        footprints.append(footprint)
+    a, b = footprints
+    assert a[1] < b[0] or b[1] < a[0] or a[3] < b[2] or b[3] < a[2]
 
 
 def test_floor_top_is_world_z0():

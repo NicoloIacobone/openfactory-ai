@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!-- UR5e with the parallel-jaw gripper, mounted on the cell table, with gz_ros2_control.
-     include_fixtures:=true  -> robot + fixed infrastructure (floor, table): robot_state_publisher,
+     include_fixtures:=true  -> robot + fixed infrastructure (floor, table, bins): robot_state_publisher,
                                 MoveIt (fixtures are collision links).
      include_fixtures:=false -> robot only: spawned in Gazebo next to the separate fixtures model
                                 (the Gazebo world has its own ground plane). -->
@@ -14,6 +14,7 @@
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro"/>
   <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/bin.xacro"/>
   <xacro:include filename="$(find openfactory_description)/urdf/gripper.xacro"/>
 
   <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
@@ -42,6 +43,8 @@
     </joint>
 
     <xacro:openfactory_table parent="world" cell="${cell}"/>
+    <xacro:openfactory_bin name="input" parent="table" cell="${cell}"/>
+    <xacro:openfactory_bin name="output" parent="table" cell="${cell}"/>
   </xacro:if>
 
   <!-- base_link pose in world: table top centre + mount offset (the table is not rotated) -->

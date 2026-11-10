@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  <!-- Open-top bin (D-008): floor + four walls in one link. The `<name>_bin` frame is the centre
+       of the inner floor surface, x/y along the table axes. Layout: config/cell.yaml `bins`. -->
+
+  <xacro:macro name="openfactory_bin_box" params="size xyz">
+    <visual>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${size[0]} ${size[1]} ${size[2]}"/>
+      </geometry>
+      <material name="bin_blue">
+        <color rgba="0.25 0.45 0.7 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${size[0]} ${size[1]} ${size[2]}"/>
+      </geometry>
+    </collision>
+  </xacro:macro>
+
+  <!-- parent: the table frame (centre of the table top) -->
+  <xacro:macro name="openfactory_bin" params="name parent cell">
+    <xacro:property name="spec" value="${cell['bins'][name]}"/>
+    <xacro:property name="t" value="${cell['bin_wall']}"/>
+    <xacro:property name="ix" value="${spec['inner_size'][0]}"/>
+    <xacro:property name="iy" value="${spec['inner_size'][1]}"/>
+    <xacro:property name="h" value="${spec['inner_size'][2]}"/>
+    <xacro:property name="mass" value="2.0"/>
+
+    <link name="${name}_bin">
+      <!-- floor, then walls at +x, -x (full outer width) and +y, -y (between them) -->
+      <xacro:openfactory_bin_box size="${[ix + 2 * t, iy + 2 * t, t]}" xyz="0 0 ${-t / 2}"/>
+      <xacro:openfactory_bin_box size="${[t, iy + 2 * t, h]}" xyz="${(ix + t) / 2} 0 ${h / 2}"/>
+      <xacro:openfactory_bin_box size="${[t, iy + 2 * t, h]}" xyz="${-(ix + t) / 2} 0 ${h / 2}"/>
+      <xacro:openfactory_bin_box size="${[ix, t, h]}" xyz="0 ${(iy + t) / 2} ${h / 2}"/>
+      <xacro:openfactory_bin_box size="${[ix, t, h]}" xyz="0 ${-(iy + t) / 2} ${h / 2}"/>
+      <!-- static in Gazebo (fixed to world); the inertia only keeps the URDF parsers happy -->
+      <inertial>
+        <origin xyz="0 0 ${h / 2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${mass * (iy ** 2 + h ** 2) / 12}" ixy="0" ixz="0"
+                 iyy="${mass * (ix ** 2 + h ** 2) / 12}" iyz="0"
+                 izz="${mass * (ix ** 2 + iy ** 2) / 12}"/>
+      </inertial>
+    </link>
+
+    <joint name="${name}_bin_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}_bin"/>
+      <origin xyz="${spec['xy'][0]} ${spec['xy'][1]} ${t}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+</robot>

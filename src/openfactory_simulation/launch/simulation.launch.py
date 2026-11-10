@@ -1,4 +1,4 @@
-"""Gazebo cell: world, table, UR5e with gz_ros2_control, /clock bridge, controllers."""
+"""Gazebo cell: world, fixtures (table, bins), UR5e with gz_ros2_control, /clock bridge, controllers."""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -15,7 +15,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 ROBOT_NAME = 'ur'
-TABLE_NAME = 'table'
+FIXTURES_NAME = 'fixtures'
 CONTROLLERS = ['joint_state_broadcaster', 'joint_trajectory_controller', 'gripper_controller']
 
 
@@ -53,7 +53,7 @@ def generate_launch_description():
     robot_only = _xacro(
         'openfactory_cell.urdf.xacro',
         include_fixtures='false', simulation_controllers=controllers_file)
-    table = _xacro('table.urdf.xacro')
+    fixtures = _xacro('fixtures.urdf.xacro')
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -111,7 +111,7 @@ def generate_launch_description():
         gazebo,
         clock_bridge,
         robot_state_publisher,
-        _spawn(TABLE_NAME, table),
+        _spawn(FIXTURES_NAME, fixtures),
         _spawn(ROBOT_NAME, robot_only),
         *spawners,
     ])

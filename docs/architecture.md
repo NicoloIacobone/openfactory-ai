@@ -51,7 +51,8 @@ Arm and cell frames fixed in phase 1, gripper and floor in phase 2; camera frame
 | `base_link` | `world` | `cell.yaml` (`robot_mount`) | UR5e base on the table top, REP 103 |
 | `base_link_inertia` … `wrist_3_link`, `flange`, `tool0` | arm chain | `ur_description` | `tool0` is the MoveIt group tip |
 | `floor` | `world` | `openfactory_description` | collision box for MoveIt only, top face at z = 0 (phase 2) |
+| `input_bin`, `output_bin` | `table` | `cell.yaml` (`bins`, `bin_wall`) | centre of the bin's inner floor surface, axes parallel to the table (phase 2) |
 | `gripper_palm`, `left_finger`, `right_finger` | `tool0` | `openfactory_description/config/gripper.yaml` | fingers slide along `tool0` y (phase 2) |
 | `gripper_tcp` | `tool0` | `gripper.yaml` (`tcp_offset`) | grasp point between the pads, +z along the tool axis (phase 2) |
 
-Cell geometry (table size and pose, robot mount) is defined once in `cell.yaml`. In Gazebo the table is a separate static model so that it collides with the arm; for `robot_state_publisher` and MoveIt it is a link of the cell URDF (`include_fixtures:=true`, together with the `floor` collision box), so it is in TF and in collision checking without extra nodes. The gripper is part of the robot in every URDF variant.
+Cell geometry (table size and pose, robot mount, bins) is defined once in `cell.yaml`. In Gazebo the table and the bins form one separate model fixed to the world (`fixtures.urdf.xacro`) so that they collide with the arm; for `robot_state_publisher` and MoveIt they are links of the cell URDF (`include_fixtures:=true`, together with the `floor` collision box), so they are in TF and in collision checking without extra nodes. The gripper is part of the robot in every URDF variant.

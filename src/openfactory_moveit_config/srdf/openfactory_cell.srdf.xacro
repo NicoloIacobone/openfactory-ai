@@ -34,4 +34,12 @@
   <disable_collisions link1="floor" link2="table" reason="Adjacent"/>
   <disable_collisions link1="floor" link2="base_link_inertia" reason="Never"/>
   <disable_collisions link1="floor" link2="shoulder_link" reason="Never"/>
+  <!-- The bins stand on the table; fixtures never move relative to each other -->
+  <disable_collisions link1="input_bin" link2="table" reason="Adjacent"/>
+  <disable_collisions link1="output_bin" link2="table" reason="Adjacent"/>
+  <disable_collisions link1="input_bin" link2="floor" reason="Never"/>
+  <disable_collisions link1="output_bin" link2="floor" reason="Never"/>
+  <disable_collisions link1="input_bin" link2="output_bin" reason="Never"/>
+  <disable_collisions link1="input_bin" link2="base_link_inertia" reason="Never"/>
+  <disable_collisions link1="output_bin" link2="base_link_inertia" reason="Never"/>
 </robot>

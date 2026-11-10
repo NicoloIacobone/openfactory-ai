@@ -52,7 +52,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Evidence:** VM check 2026-11-10: `gripper_controllers` 4.42.1 registers `position_controllers/` and `effort_controllers/GripperActionController`; `gz_ros2_control` 1.2.20 loads every `ros2_control` block and drives URDF mimic joints listed without command interfaces (upstream `component_parser.cpp`, `gz_system.cpp`). Position commands become joint velocity commands in Gazebo.
 - **Gazebo joint limits (2026-11-10):** a Gazebo joint driven onto a position limit or onto its velocity limit stops following `gz_ros2_control` commands (cf. gz_ros2_control#165/#192). First runs: with the initial state on the stroke limit the fingers never moved; with a 0.1 m/s velocity limit a finger moving in the direction of gravity ran on to its end stop and stuck. Fix: joint limits are the commanded stroke ± `limit_margin` (5 mm), and the velocity limit (10 m/s) stays above every command `gz_ros2_control` issues (finger 0.1 × 500 Hz × error, mimic finger 500 Hz × lag). Finger speed is then set by the plugin's position gain, not by the URDF limit. Check: close, open, 0.02, close, open, all `reached_goal`, both fingers within 0.2 mm of each other, no drift to the end stops.
 - **Consequences:** no vendor gripper mesh or driver; a Robotiq can replace it later behind the same `GripperCommand` action. MoveIt has a `gripper` group and end effector but does not plan the fingers.
-- **Status:** proposed, until the phase 2 gripper test passes.
+- **Status:** accepted (E-002: 30/30 friction grasps, no slip).
 
 ## D-008 — Bins and floor as fixture links, like the table
 

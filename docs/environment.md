@@ -141,6 +141,10 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 - `/world/cell/create` and `/create/blocking` (and `remove`) both answer; the harness uses the blocking ones.
 - Results: D-009.
 
+## Phase 2 closing run — 2026-11-10
+
+`cell.launch.py headless:=true rviz:=false` + `phase2_pick_place_test.py` (30 cycles, E-002): 1.3 GiB used, 2.5 GiB available before and after; Gazebo real-time factor ≈ 1.0 during cycles. With the Gazebo GUI and RViz open, the harness smoke run saw cycles slow down by up to 3× in wall time.
+
 ## Selected stack
 
 | Area | Choice | Why |
@@ -149,6 +153,7 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 | Simulator | Gazebo Harmonic (Sim 8.15) via `ros-jazzy-ros-gz`, render engine `ogre` (D-005) | Official Jazzy pairing, binary on aarch64; `ogre2` does not run on the virtio GPU |
 | Planning | MoveIt 2 2.12.4, OMPL via `openfactory_moveit_config` | Binary on aarch64; E-001 10/10 |
 | Robot | UR5e (D-004) | Full apt stack (description, Gazebo sim, MoveIt config) exists for Jazzy; Franka would need a source build |
+| Gripper | Project parallel-jaw gripper, `position_controllers/GripperActionController` (D-007) | No install; E-002 30/30 |
 
 Final choices are recorded in `docs/decisions.md` once installation and a phase-1 test confirm them.
 

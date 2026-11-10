@@ -4,7 +4,7 @@ A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recover
 
 The first deliverable is an **autonomous random bin-picking cell**; it is designed to grow into a production line and later a multi-robot factory.
 
-> Status: **phase 2, deterministic pick/place.** Phase 1 is closed: a UR5e on the cell table in Gazebo Harmonic, planned by MoveIt 2 and executed through `ros2_control` (10/10 collision-free reach goals, `docs/experiments.md` E-001).
+> Status: **phase 3, camera and 3D perception.** Phase 2 is closed: the UR5e with a parallel-jaw gripper picks a cube, a cylinder and a triangular prism from known poses in the input bin and places them in the output bin, planned by MoveIt 2 and executed through `ros2_control` in Gazebo Harmonic (30/30 cycles, 0 collisions, median cycle 18.4 s, `docs/experiments.md` E-002). Phase 1: 10/10 collision-free reach goals (E-001).
 
 ## Roadmap
 
@@ -64,4 +64,11 @@ ros2 launch openfactory_bringup cell.launch.py              # headless:=false fo
 
 # Phase 1 reach test (in another terminal, with the cell running): 10 seeded goals, logs in ~/openfactory_data/trials/
 python3 <repo>/scripts/phase1_reach_test.py --seed 1
+
+# One pick-and-place cycle: spawn an object at a known pose in the input bin, then pick and place it
+python3 <repo>/scripts/gz_scene.py spawn cube
+ros2 run openfactory_manipulation pick_place_once --object cube
+
+# Phase 2 closing test (cell launched with headless:=true rviz:=false): 10 cycles per object
+python3 <repo>/scripts/phase2_pick_place_test.py
 ```

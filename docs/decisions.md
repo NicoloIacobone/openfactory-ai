@@ -27,7 +27,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Context:** the brief suggests a mature arm such as UR5e or Franka Panda.
 - **Decision:** UR5e, from the Jazzy apt packages (`ur_description`, `ur_simulation_gz`, `ur_moveit_config`); Franka has no Jazzy apt package here.
 - **Evidence:** smoke test 2026-10-29 (`docs/environment.md`): MoveIt 2 plans and executes through `scaled_joint_trajectory_controller` in Gazebo; full stack uses 1.46 GiB of 3.8 GiB.
-- **Status:** accepted. Gripper chosen in phase 2.
+- **Status:** accepted. Gripper: D-007.
 
 ## D-005 — Gazebo Harmonic with the Ogre 1 render engine, sensors on the VM display
 
@@ -44,3 +44,12 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Consequences:** MoveIt sees the table as a robot link (allowed collisions with `base_link_inertia` and `shoulder_link` in the SRDF), not as a planning-scene collision object. Bins and camera mount (phases 2–3) are revisited when a scene node exists. The URDF given to MoveIt differs from the RSP one only in the Gazebo controllers path.
 - **Evidence:** 2026-10-29 cell launch (`docs/environment.md`): TF matches `cell.yaml`, MoveIt rejects arm–table contact, RViz Plan & Execute runs through `joint_trajectory_controller`.
 - **Status:** accepted.
+
+## D-007 — Simple parallel-jaw gripper, friction grasp
+
+- **Context:** phase 2 needs a gripper for cubes, cylinders and prisms of about 5 cm. `ros-jazzy-robotiq-description` exists in apt, but the 2F-85 needs an install, has a mimic linkage, and friction grasps with it in Gazebo are known to be fragile; the VM has 3.8 GB RAM.
+- **Decision:** a project-defined gripper in `openfactory_description` (`urdf/gripper.xacro`, sizes in `config/gripper.yaml`): box palm on `tool0`, two prismatic box fingers along `tool0` y, opening 0–0.085 m, `right_finger_joint` mimics `left_finger_joint`, TCP frame `gripper_tcp`. Driven by `position_controllers/GripperActionController` (`gripper_controllers`, already installed) in its own `ros2_control` block of `gz_ros2_control`. Objects are held by friction only: no attach plugin, no `DetachableJoint`. If friction grasps prove unreliable, friction, effort, speed and object mass are tuned first; any attach mechanism needs the user's approval and a new entry (it bends rule 1).
+- **Evidence:** VM check 2026-11-10: `gripper_controllers` 4.42.1 registers `position_controllers/` and `effort_controllers/GripperActionController`; `gz_ros2_control` 1.2.20 loads every `ros2_control` block and drives URDF mimic joints listed without command interfaces (upstream `component_parser.cpp`, `gz_system.cpp`). Position commands become joint velocity commands in Gazebo.
+- **Gazebo joint limits (2026-11-10):** a Gazebo joint driven onto a position limit or onto its velocity limit stops following `gz_ros2_control` commands (cf. gz_ros2_control#165/#192). First runs: with the initial state on the stroke limit the fingers never moved; with a 0.1 m/s velocity limit a finger moving in the direction of gravity ran on to its end stop and stuck. Fix: joint limits are the commanded stroke ± `limit_margin` (5 mm), and the velocity limit (10 m/s) stays above every command `gz_ros2_control` issues (finger 0.1 × 500 Hz × error, mimic finger 500 Hz × lag). Finger speed is then set by the plugin's position gain, not by the URDF limit. Check: close, open, 0.02, close, open, all `reached_goal`, both fingers within 0.2 mm of each other, no drift to the end stops.
+- **Consequences:** no vendor gripper mesh or driver; a Robotiq can replace it later behind the same `GripperCommand` action. MoveIt has a `gripper` group and end effector but does not plan the fingers.
+- **Status:** proposed, until the phase 2 gripper test passes.

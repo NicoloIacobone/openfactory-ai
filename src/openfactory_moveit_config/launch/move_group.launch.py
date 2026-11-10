@@ -29,7 +29,7 @@ def generate_launch_description():
         # Same xacro as robot_state_publisher; the Gazebo controllers path is irrelevant here.
         .robot_description(
             file_path=str(_share('openfactory_description') / 'urdf' / 'openfactory_cell.urdf.xacro'),
-            mappings={'include_table': 'true'})
+            mappings={'include_fixtures': 'true'})
         .robot_description_semantic(
             file_path=str(_share('openfactory_moveit_config') / 'srdf' / 'openfactory_cell.srdf.xacro'))
         .trajectory_execution(

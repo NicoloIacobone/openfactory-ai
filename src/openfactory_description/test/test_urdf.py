@@ -11,6 +11,7 @@ from ament_index_python.packages import get_package_share_directory
 
 PKG = Path(get_package_share_directory('openfactory_description'))
 CELL = yaml.safe_load((PKG / 'config' / 'cell.yaml').read_text())
+GRIPPER = yaml.safe_load((PKG / 'config' / 'gripper.yaml').read_text())
 
 ARM_JOINTS = [
     'shoulder_pan_joint',
@@ -37,12 +38,13 @@ def _xyz(element):
     return [float(v) for v in element.find('origin').get('xyz').split()]
 
 
-@pytest.mark.parametrize('include_table', ['true', 'false'])
-def test_cell_robot(include_table):
-    root = _urdf('openfactory_cell.urdf.xacro', include_table=include_table)
+@pytest.mark.parametrize('include_fixtures', ['true', 'false'])
+def test_cell_robot(include_fixtures):
+    root = _urdf('openfactory_cell.urdf.xacro', include_fixtures=include_fixtures)
     links = {link.get('name') for link in root.findall('link')}
 
-    assert ('table' in links) == (include_table == 'true')
+    for fixture in ('floor', 'table'):
+        assert (fixture in links) == (include_fixtures == 'true')
     for name in ARM_JOINTS:
         assert _joint(root, name).get('type') == 'revolute'
 
@@ -66,7 +68,7 @@ def test_cell_robot(include_table):
 
 def test_table_model_matches_cell_table():
     standalone = _urdf('table.urdf.xacro')
-    in_cell = _urdf('openfactory_cell.urdf.xacro', include_table='true')
+    in_cell = _urdf('openfactory_cell.urdf.xacro', include_fixtures='true')
 
     for root in (standalone, in_cell):
         joint = _joint(root, 'table_joint')
@@ -76,3 +78,48 @@ def test_table_model_matches_cell_table():
             [table['xyz'][0], table['xyz'][1], table['xyz'][2] + table['size'][2]])
         size = root.find("link[@name='table']/collision/geometry/box").get('size')
         assert [float(v) for v in size.split()] == pytest.approx(table['size'])
+
+
+def test_floor_top_is_world_z0():
+    root = _urdf('openfactory_cell.urdf.xacro', include_fixtures='true')
+    assert _joint(root, 'floor_joint').find('parent').get('link') == 'world'
+    collision = root.find("link[@name='floor']/collision")
+    thickness = float(collision.find('geometry/box').get('size').split()[2])
+    assert _xyz(collision)[2] + thickness / 2 == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize('include_fixtures', ['true', 'false'])
+def test_gripper(include_fixtures):
+    root = _urdf('openfactory_cell.urdf.xacro', include_fixtures=include_fixtures)
+    finger = GRIPPER['finger']
+
+    assert _joint(root, 'gripper_mount_joint').find('parent').get('link') == 'tool0'
+    tcp = _joint(root, 'gripper_tcp_joint')
+    assert tcp.find('parent').get('link') == 'tool0'
+    assert _xyz(tcp) == pytest.approx([0.0, 0.0, GRIPPER['tcp_offset']])
+    # the TCP lies between the pads, above the fingertips
+    tips = GRIPPER['palm']['size'][2] + finger['size'][2]
+    assert GRIPPER['palm']['size'][2] < GRIPPER['tcp_offset'] < tips
+
+    for name, axis in (('left_finger_joint', [0, 1, 0]), ('right_finger_joint', [0, -1, 0])):
+        joint = _joint(root, name)
+        assert joint.get('type') == 'prismatic'
+        assert [float(v) for v in joint.find('axis').get('xyz').split()] == axis
+        limit = joint.find('limit')
+        # commanded range [0, stroke] strictly inside the joint limits (gz_ros2_control#165)
+        assert finger['limit_margin'] > 0
+        assert float(limit.get('lower')) == pytest.approx(-finger['limit_margin'])
+        assert float(limit.get('upper')) == pytest.approx(finger['stroke'] + finger['limit_margin'])
+        assert float(limit.get('effort')) == pytest.approx(finger['effort'])
+
+    mimic = _joint(root, 'right_finger_joint').find('mimic')
+    assert mimic is not None and mimic.get('joint') == 'left_finger_joint'
+    assert float(mimic.get('multiplier')) == 1.0
+
+    # left finger commanded by position; the mimic joint must not have command interfaces
+    control = root.find("ros2_control[@name='gripper']")
+    assert control.find('hardware/plugin').text == 'gz_ros2_control/GazeboSimSystem'
+    left = control.find("joint[@name='left_finger_joint']")
+    right = control.find("joint[@name='right_finger_joint']")
+    assert [c.get('name') for c in left.findall('command_interface')] == ['position']
+    assert right.findall('command_interface') == []

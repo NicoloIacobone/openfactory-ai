@@ -127,6 +127,14 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 - Gazebo GUI (`headless:=false rviz:=false`, `gz sim -r --render-engine ogre` on the VM desktop): renders floor, table and arm, smooth according to the user; `gz sim gui` ≈ 400 MB RSS, `gz sim server` ≈ 190 MB; 1.5 GiB used, 2.3 GiB available.
 - Harmless log lines: `MoveItConfigsBuilder` "Cannot infer URDF/SRDF" for `ur_moveit_config` (overridden), octomap "No 3D sensor plugin(s)", RViz `/recognize_objects` not available, duplicate `rviz2_moveit` rosout publisher.
 
+## Phase 2 gripper check — 2026-11-10
+
+`ros2 launch openfactory_bringup cell.launch.py headless:=false`, no new packages:
+
+- `gripper_controller` (`position_controllers/GripperActionController`) active; it logs a deprecation in favour of `parallel_gripper_action_controller` (package not installed). `gz_ros2_control` logs `right_finger_joint` mimicking `left_finger_joint`; Gazebo's own "physics engine does not support mimic constraints" error is harmless, `gz_ros2_control` drives the mimic joint itself.
+- `GripperCommand` goals 0 → 0.0425 → 0.02 → 0 → 0.0425: all reached, fingers within 0.2 mm of each other, after the joint-limit fix in D-007.
+- `/check_state_validity`: the home state is valid; arm and gripper pushed into the table are rejected (`gripper_palm`, fingers vs `table`). TF `tool0 → gripper_tcp` = (0, 0, 0.085).
+
 ## Selected stack
 
 | Area | Choice | Why |

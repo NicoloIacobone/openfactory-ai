@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  <!-- Parallel-jaw gripper (D-007): box palm on `parent`, two prismatic fingers along the
+       parent y axis. right_finger_joint mimics left_finger_joint, so one controller drives
+       both. gripper_tcp is the grasp point between the pads. Sizes: config/gripper.yaml. -->
+
+  <xacro:macro name="openfactory_box_inertial" params="mass size xyz">
+    <inertial>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass * (size[1] ** 2 + size[2] ** 2) / 12}" ixy="0" ixz="0"
+               iyy="${mass * (size[0] ** 2 + size[2] ** 2) / 12}" iyz="0"
+               izz="${mass * (size[0] ** 2 + size[1] ** 2) / 12}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="openfactory_box_geometry" params="size xyz">
+    <origin xyz="${xyz}" rpy="0 0 0"/>
+    <geometry>
+      <box size="${size[0]} ${size[1]} ${size[2]}"/>
+    </geometry>
+  </xacro:macro>
+
+  <!-- side: 1 for the left finger (+y), -1 for the right finger (-y) -->
+  <xacro:macro name="openfactory_finger" params="name side g">
+    <xacro:property name="f" value="${g['finger']}"/>
+    <xacro:property name="palm_z" value="${g['palm']['size'][2]}"/>
+    <!-- link frame on the inner pad face, at the palm bottom; the box extends outwards and down -->
+    <xacro:property name="box_xyz" value="0 ${side * f['size'][1] / 2} ${f['size'][2] / 2}"/>
+
+    <link name="${name}_finger">
+      <visual>
+        <xacro:openfactory_box_geometry size="${f['size']}" xyz="${box_xyz}"/>
+        <material name="gripper_dark">
+          <color rgba="0.2 0.2 0.2 1"/>
+        </material>
+      </visual>
+      <collision>
+        <xacro:openfactory_box_geometry size="${f['size']}" xyz="${box_xyz}"/>
+      </collision>
+      <xacro:openfactory_box_inertial mass="${f['mass']}" size="${f['size']}" xyz="${box_xyz}"/>
+    </link>
+
+    <joint name="${name}_finger_joint" type="prismatic">
+      <parent link="gripper_palm"/>
+      <child link="${name}_finger"/>
+      <origin xyz="0 0 ${palm_z}" rpy="0 0 0"/>
+      <axis xyz="0 ${side} 0"/>
+      <limit lower="${-f['limit_margin']}" upper="${f['stroke'] + f['limit_margin']}"
+             effort="${f['effort']}" velocity="${f['velocity']}"/>
+      <xacro:if value="${side == -1}">
+        <mimic joint="left_finger_joint" multiplier="1" offset="0"/>
+      </xacro:if>
+    </joint>
+
+    <gazebo reference="${name}_finger">
+      <mu1>${f['friction']}</mu1>
+      <mu2>${f['friction']}</mu2>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="openfactory_gripper" params="parent gripper">
+    <xacro:property name="palm" value="${gripper['palm']}"/>
+    <xacro:property name="palm_xyz" value="0 0 ${palm['size'][2] / 2}"/>
+
+    <link name="gripper_palm">
+      <visual>
+        <xacro:openfactory_box_geometry size="${palm['size']}" xyz="${palm_xyz}"/>
+        <material name="gripper_grey">
+          <color rgba="0.4 0.4 0.45 1"/>
+        </material>
+      </visual>
+      <collision>
+        <xacro:openfactory_box_geometry size="${palm['size']}" xyz="${palm_xyz}"/>
+      </collision>
+      <xacro:openfactory_box_inertial mass="${palm['mass']}" size="${palm['size']}" xyz="${palm_xyz}"/>
+    </link>
+
+    <joint name="gripper_mount_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="gripper_palm"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <xacro:openfactory_finger name="left" side="1" g="${gripper}"/>
+    <xacro:openfactory_finger name="right" side="-1" g="${gripper}"/>
+
+    <link name="gripper_tcp"/>
+    <joint name="gripper_tcp_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="gripper_tcp"/>
+      <origin xyz="0 0 ${gripper['tcp_offset']}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Gazebo hardware for the fingers: the right finger is a mimic joint (no command interface) -->
+  <xacro:macro name="openfactory_gripper_ros2_control" params="gripper">
+    <ros2_control name="gripper" type="system">
+      <hardware>
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+      <joint name="left_finger_joint">
+        <command_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${gripper['finger']['stroke']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="right_finger_joint">
+        <state_interface name="position">
+          <param name="initial_value">${gripper['finger']['stroke']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+  </xacro:macro>
+</robot>

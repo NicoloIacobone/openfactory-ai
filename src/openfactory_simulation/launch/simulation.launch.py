@@ -16,7 +16,7 @@ from launch_ros.substitutions import FindPackageShare
 
 ROBOT_NAME = 'ur'
 TABLE_NAME = 'table'
-CONTROLLERS = ['joint_state_broadcaster', 'joint_trajectory_controller']
+CONTROLLERS = ['joint_state_broadcaster', 'joint_trajectory_controller', 'gripper_controller']
 
 
 def _xacro(file_name, **args):
@@ -46,13 +46,13 @@ def generate_launch_description():
         [FindPackageShare('openfactory_simulation'), 'config', 'ros2_controllers.yaml'])
 
     # Same xacro and arguments for robot_state_publisher (which gz_ros2_control reads)
-    # and the spawned robot; only the table is split off into its own Gazebo model.
-    robot_with_table = _xacro(
+    # and the spawned robot; only the fixtures are split off into its own Gazebo model.
+    robot_with_fixtures = _xacro(
         'openfactory_cell.urdf.xacro',
-        include_table='true', simulation_controllers=controllers_file)
+        include_fixtures='true', simulation_controllers=controllers_file)
     robot_only = _xacro(
         'openfactory_cell.urdf.xacro',
-        include_table='false', simulation_controllers=controllers_file)
+        include_fixtures='false', simulation_controllers=controllers_file)
     table = _xacro('table.urdf.xacro')
 
     gazebo = IncludeLaunchDescription(
@@ -82,7 +82,7 @@ def generate_launch_description():
         package='robot_state_publisher',
         executable='robot_state_publisher',
         parameters=[{
-            'robot_description': ParameterValue(robot_with_table, value_type=str),
+            'robot_description': ParameterValue(robot_with_fixtures, value_type=str),
             'use_sim_time': True,
         }],
         output='screen',

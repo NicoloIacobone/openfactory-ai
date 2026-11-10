@@ -38,10 +38,11 @@ To be defined in the phase that introduces each component. Standard types first 
 | `/joint_states` | `sensor_msgs/JointState` | `joint_state_broadcaster` → `robot_state_publisher`, `move_group` | phase 1 |
 | `/joint_trajectory_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `move_group` → `joint_trajectory_controller` | only path for arm motion (phase 1) |
 | `/move_action` | `moveit_msgs/action/MoveGroup` | clients → `move_group` | plan and execute (phase 1) |
+| `/gripper_controller/gripper_cmd` | `control_msgs/action/GripperCommand` | manipulation → `gripper_controller` | `position` = left finger joint = half the jaw opening (m); stalling on an object succeeds (phase 2) |
 
 ## Frames
 
-Arm and cell frames fixed in phase 1; camera frames in phase 3. Conventions: REP 103 / REP 105, SI units, radians; camera data in `*_optical_frame`.
+Arm and cell frames fixed in phase 1, gripper and floor in phase 2; camera frames in phase 3. Conventions: REP 103 / REP 105, SI units, radians; camera data in `*_optical_frame`.
 
 | Frame | Parent | Defined by | Notes |
 |---|---|---|---|
@@ -49,5 +50,8 @@ Arm and cell frames fixed in phase 1; camera frames in phase 3. Conventions: REP
 | `table` | `world` | `openfactory_description/config/cell.yaml` | centre of the table top surface |
 | `base_link` | `world` | `cell.yaml` (`robot_mount`) | UR5e base on the table top, REP 103 |
 | `base_link_inertia` … `wrist_3_link`, `flange`, `tool0` | arm chain | `ur_description` | `tool0` is the MoveIt group tip |
+| `floor` | `world` | `openfactory_description` | collision box for MoveIt only, top face at z = 0 (phase 2) |
+| `gripper_palm`, `left_finger`, `right_finger` | `tool0` | `openfactory_description/config/gripper.yaml` | fingers slide along `tool0` y (phase 2) |
+| `gripper_tcp` | `tool0` | `gripper.yaml` (`tcp_offset`) | grasp point between the pads, +z along the tool axis (phase 2) |
 
-Cell geometry (table size and pose, robot mount) is defined once in `cell.yaml`. In Gazebo the table is a separate static model so that it collides with the arm; for `robot_state_publisher` and MoveIt it is a link of the cell URDF (`include_table:=true`), so it is in TF and in collision checking without extra nodes.
+Cell geometry (table size and pose, robot mount) is defined once in `cell.yaml`. In Gazebo the table is a separate static model so that it collides with the arm; for `robot_state_publisher` and MoveIt it is a link of the cell URDF (`include_fixtures:=true`, together with the `floor` collision box), so it is in TF and in collision checking without extra nodes. The gripper is part of the robot in every URDF variant.

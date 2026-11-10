@@ -1,18 +1,23 @@
 <?xml version="1.0"?>
-<!-- UR5e mounted on the cell table, with gz_ros2_control.
-     include_table:=true  -> robot + table: robot_state_publisher, MoveIt (table is a collision link).
-     include_table:=false -> robot only: spawned in Gazebo next to the separate table model. -->
+<!-- UR5e with the parallel-jaw gripper, mounted on the cell table, with gz_ros2_control.
+     include_fixtures:=true  -> robot + fixed infrastructure (floor, table): robot_state_publisher,
+                                MoveIt (fixtures are collision links).
+     include_fixtures:=false -> robot only: spawned in Gazebo next to the separate fixtures model
+                                (the Gazebo world has its own ground plane). -->
 <robot xmlns:xacro="http://wiki.ros.org/xacro" name="ur">
   <xacro:arg name="ur_type" default="ur5e"/>
-  <xacro:arg name="include_table" default="true"/>
+  <xacro:arg name="include_fixtures" default="true"/>
   <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
+  <xacro:arg name="gripper_file" default="$(find openfactory_description)/config/gripper.yaml"/>
   <xacro:arg name="simulation_controllers" default=""/>
 
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro"/>
   <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/gripper.xacro"/>
 
   <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
+  <xacro:property name="gripper" value="${xacro.load_yaml('$(arg gripper_file)')}"/>
   <xacro:property name="table_top_z" value="${cell['table']['xyz'][2] + cell['table']['size'][2]}"/>
   <xacro:property name="mount_xyz" value="${cell['robot_mount']['xyz']}"/>
   <xacro:property name="mount_rpy" value="${cell['robot_mount']['rpy']}"/>
@@ -20,7 +25,22 @@
 
   <link name="world"/>
 
-  <xacro:if value="$(arg include_table)">
+  <xacro:if value="$(arg include_fixtures)">
+    <!-- Floor for collision checking only (top face at z = 0); Gazebo has its ground plane -->
+    <link name="floor">
+      <collision>
+        <origin xyz="0 0 -0.01" rpy="0 0 0"/>
+        <geometry>
+          <box size="4.0 4.0 0.02"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="floor_joint" type="fixed">
+      <parent link="world"/>
+      <child link="floor"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
     <xacro:openfactory_table parent="world" cell="${cell}"/>
   </xacro:if>
 
@@ -38,6 +58,8 @@
             rpy="${mount_rpy[0]} ${mount_rpy[1]} ${mount_rpy[2]}"/>
   </xacro:ur_robot>
 
+  <xacro:openfactory_gripper parent="tool0" gripper="${gripper}"/>
+
   <gazebo>
     <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
       <parameters>$(arg simulation_controllers)</parameters>
@@ -45,4 +67,5 @@
   </gazebo>
 
   <xacro:ur_ros2_control name="ur" tf_prefix=""/>
+  <xacro:openfactory_gripper_ros2_control gripper="${gripper}"/>
 </robot>

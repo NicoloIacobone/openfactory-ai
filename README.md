@@ -4,7 +4,7 @@ A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recover
 
 The first deliverable is an **autonomous random bin-picking cell**; it is designed to grow into a production line and later a multi-robot factory.
 
-> Status: **phase 3, camera and 3D perception.** Phase 2 is closed: the UR5e with a parallel-jaw gripper picks a cube, a cylinder and a triangular prism from known poses in the input bin and places them in the output bin, planned by MoveIt 2 and executed through `ros2_control` in Gazebo Harmonic (30/30 cycles, 0 collisions, median cycle 18.4 s, `docs/experiments.md` E-002). Phase 1: 10/10 collision-free reach goals (E-001).
+> Status: **phase 4, random bin picking.** Phase 3 is closed: a fixed RGB-D camera modelled on the RealSense D415 (with a depth error model) observes the input bin, a geometric pipeline recognises and locates cubes, cylinders and prisms from depth and TF alone (79/79 objects in 44 seeded scenes, median position error 0.2 mm in simulation), and a pick driven by that hypothesis instead of a known pose succeeds 28/30 times with 0 collisions (`docs/experiments.md` E-003). Phase 2: 30/30 pick-and-place cycles at known poses, planned by MoveIt 2 and executed through `ros2_control` in Gazebo Harmonic (E-002). Phase 1: 10/10 collision-free reach goals (E-001).
 
 ## Roadmap
 

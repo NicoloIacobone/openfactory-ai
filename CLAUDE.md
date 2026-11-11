@@ -14,8 +14,8 @@ OpenFactory AI is a ROS 2 digital twin of a robotic cell that perceives a changi
 | 1 | Supported arm in the simulator + MoveIt 2 | closed 2026-10-29: E-001 reach test 10/10, D-004 (UR5e), D-006 (cell layout) |
 | 2 | Deterministic pick/place at a known pose | closed 2026-11-10: E-002 30/30 (cube, cylinder, prism), D-007–D-010 |
 | 3 | RGB-D camera, TF, calibration, geometric perception | closed 2026-11-11: E-003 (calibration, perception 79/79, camera-driven pick 28/30), D-011–D-013 |
-| 4 | Random bin picking MVP with metrics | next |
-| 5 | AI and robustness: learned ranking vs baseline, recovery | — |
+| 4 | Random bin picking MVP with metrics | closed 2026-11-11: E-004 (99/100 objects on the evaluation seed, 99/100 and 97/100 on two confirmation seeds, 0 collisions), D-014–D-017 |
+| 5 | AI and robustness: learned ranking vs baseline, recovery | next |
 | 6 | Factory expansion | — |
 
 A phase starts only after the previous one is closed, and closes only when its measurable test passes. When that happens, propose updating this table and `README.md`.

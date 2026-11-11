@@ -11,6 +11,7 @@
 
   <exec_depend>openfactory_simulation</exec_depend>
   <exec_depend>openfactory_moveit_config</exec_depend>
+  <exec_depend>openfactory_perception</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

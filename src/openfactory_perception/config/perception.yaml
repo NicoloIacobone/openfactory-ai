@@ -1,0 +1,29 @@
+# Geometric perception baseline (D-012). SI units. Lengths refer to the input_bin frame
+# (origin at the centre of the inner floor, z up).
+
+# Calibration correction, pixels added to the (cx, cy) of camera_info. Gazebo reports the
+# principal point as (width / 2, height / 2) while its pixel (u, v) looks along the ray of
+# (u + 0.5, v + 0.5): measured by scripts/phase3_camera_check.py (E-003 part A), 0.7 mm on the
+# bin floor.
+principal_point_offset: [-0.5, -0.5]
+
+depth_range: [0.1, 3.0]        # m, accepted z-depth; NaN, inf and 0 are always rejected
+
+wall_margin: 0.005             # m, points this close to the bin walls are ignored
+floor_threshold: 0.006         # m above the known floor plane: about 4 sigma of the depth noise
+max_object_height: 0.12        # m, above the tallest catalog object: removes the arm
+
+cell: 0.002                    # m, top-view grid; about one camera pixel and a half on the floor
+close_cells: 3                 # morphological closing, cells: bridges sparsely seen slanted faces
+open_cells: 3                  # morphological opening, cells: removes noise specks
+min_area: 0.0003               # m^2, smaller blobs are dropped (smallest object footprint 0.0020)
+
+flat_tolerance: 0.005          # m, thickness of the top layer of a cluster
+sigma:                         # normalisation of the feature residuals
+  height: 0.004                # m
+  size: 0.004                  # m, footprint sides
+  fill: 0.07                   # footprint area / rectangle area (rectangle 1, disc 0.785)
+  flat: 0.2                    # share of the footprint at top height
+min_score: 0.2                 # below it the cluster is published as `unknown`
+
+publish_debug: true            # /perception/debug/points and /perception/debug/image

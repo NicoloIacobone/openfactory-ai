@@ -32,7 +32,7 @@ The log format lives in one pure module with tests; every producer uses it.
 
 ## Scripts
 
-- `scripts/benchmark.py`: runs N seeded trials headless, writes logs, then a summary. Re-runnable, no manual steps.
+- `scripts/benchmark.py [--set dev|eval]`: runs the seeded scenes of `scripts/config/phase4_bin_picking.yaml` through the cell's own loop, writes `attempts.jsonl`, `scenes.jsonl` and `summary.json`. Re-runnable, no manual steps. Ground-truth judgement in `scripts/bin_picking_eval.py` (pure, tested).
 - `scripts/randomize_scene.py`: see the simulation guide.
 - Results summary (tables, plots) in `docs/experiments.md` with the run id, commit and config; raw logs stay in `data/`.
 

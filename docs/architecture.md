@@ -36,7 +36,7 @@ Phase 4 implements the other two as libraries of `openfactory_manipulation`, run
 - `grasp_selector` is `grasp_selector.GraspSelector` (pure logic in `core/grasps.py`, D-016): top-down candidates per hypothesis, hard filters (gripper width, fingers against the bin walls and the other objects, then MoveIt: collision-free IK above the grasp, approach line, lift line), and a baseline score on the survivors only. Every rejection is counted by reason.
 - `scene_manager` is `bin_picking.BinPicking` (pure logic in `core/task.py`, D-017). One step: view of the input bin with the arm at ready → every object of the view into the planning scene → grasp selection → `PickPlace.run_grasp` → next view, which verifies the pick (the object must be gone from the input bin) and feeds the next step. It keeps the task state of a scene: failed grasps that are not repeated, attempt budgets, the objects it placed and where. The loop ends with a reason (`bin_empty`, `no_feasible_grasp`, `only_unknown`, `output_full`, `attempt_budget`, `failure_budget`, `no_view`).
 
-The output bin is not observed by the camera: the cell places on a fixed grid of points in `output_bin` and remembers what it put where (planning-scene obstacles), so the object's final pose there is known only to the evaluation harness.
+The output bin is not observed by the camera: the cell places on a fixed grid of points in `output_bin` and remembers what it put where (planning-scene obstacles), so the object's final pose there is known only to the evaluation harness. If no place point is feasible the held object is set down where it was picked. The planning-scene world holds objects only and belongs to this loop, which empties it at every new scene.
 
 ## Interfaces
 

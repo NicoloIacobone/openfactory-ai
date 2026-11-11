@@ -37,8 +37,14 @@ pre-grasp → approach → close gripper → verify contact → lift → (attach
 ## Verification and recovery
 
 - Success needs evidence from more than one source: gripper state (width/effort), execution result, and the scene after the action (perception sees the object gone from the input bin / in the destination bin).
-- Failures get a reason code (`no_detection`, `no_feasible_grasp`, `ik_failed`, `planning_failed`, `execution_failed`, `grasp_slipped`, `place_failed`, `timeout`, ...) logged per attempt.
+- Failures get a reason code logged per attempt. Cycle (`core/pick_place.py`): `scene_failed`, `ik_failed`, `planning_failed`, `execution_failed`, `gripper_failed`, `grasp_failed`, `grasp_slipped`, `place_blocked`, `timeout`. Loop (`core/task.py`): `object_not_removed`, `no_view`. Harness, from ground truth: `place_failed`, `collision`. Candidates are rejected with `gripper_width`, `wall_collision`, `neighbour_collision`, `ik_failed`, `approach_blocked`, `lift_blocked` (`core/grasps.py`), and a scene ends with one of the reasons in `core/task.py` (`bin_empty`, `no_feasible_grasp`, ...).
 - Recovery: re-perceive and replan, try the next candidate, back off and retry; give up after a bounded number of attempts and record it. Failed attempts never count as successes.
+
+## Bin picking (phase 4)
+
+- `ros2 run openfactory_manipulation bin_picking` empties the input bin; `BinPicking.step()` is one attempt, `reset()` starts a new scene and empties the planning-scene world (objects left in `move_group` by an earlier process would otherwise block place points, D-017).
+- Views are taken with the arm at ready only: perception sees whatever is in the bin volume.
+- A held prism can swing between the pads (D-015); do not raise its grasp.
 
 ## Phase 2 note
 

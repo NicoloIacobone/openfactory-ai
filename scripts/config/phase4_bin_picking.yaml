@@ -1,0 +1,35 @@
+# Phase 4 closing test (E-004): autonomous random bin picking. The cell empties an input bin
+# holding several catalog objects into the output bin, on its own, scene after scene; the
+# harness only spawns the scenes and evaluates with simulator ground truth.
+# Thresholds were fixed before the evaluation run; tuning uses the dev set only.
+strategy: geometric_top_down_ranked   # D-012 perception, D-016 grasp selection, D-017 loop
+
+objects_per_scene: 5            # types drawn from the catalog by the scene seed
+scene:                          # randomize_scene.sample_scene: resting in catalog orientation,
+  wall_margin: 0.008            # m, footprint circle to the bin walls (perception ignores 5 mm)
+  min_gap: 0.010                # m, between footprint circles: close, never touching
+
+sets:                           # tuning and evaluation seeds are disjoint
+  dev: {seed: 1000, scenes: 6, empty_scenes: 1}
+  eval: {seed: 1, scenes: 20, empty_scenes: 2}
+
+pick_place_config: null         # null: openfactory_manipulation/config/pick_place.yaml
+
+evaluation:
+  settle_s: 1.0                 # after spawning and after every attempt, before reading ground truth
+  rest_interval_s: 0.5          # between the two readings that tell whether an object is at rest
+  rest_motion_m: 0.001          # at rest: moved less than this between the two readings
+  spawn_tolerance_m: 0.005      # objects must rest this close to where they were spawned
+  max_tilt_rad: 0.1             # upright (reported, not required: an object counts as deposited
+  rest_height_m: 0.005          # when it rests inside the output bin on any face, D-017)
+  disturbed_m: 0.005            # another object moved more than this during an attempt
+  match_distance_m: 0.02        # the object the cell aimed at is within this of its target point
+  record_period_s: 0.1          # executed states sampled from /joint_states, re-checked by MoveIt
+
+thresholds:
+  min_completion: 0.85          # objects deposited in the output bin / objects spawned
+  min_completion_per_type: 0.80
+  min_pick_success: 0.80        # successful attempts / attempts
+  max_invalid_states: 0         # executed states in collision for MoveIt
+  max_undetected_failures: 2    # attempts the cell believes while ground truth disagrees
+  min_recovery: 0.90            # detected failures after which the cell was back at ready with a view

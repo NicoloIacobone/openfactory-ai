@@ -17,7 +17,8 @@ import sys
 
 from openfactory_manipulation.core.objects import bounding_box
 
-MAX_TRIES = 2000
+MAX_TRIES = 2000         # positions tried for one object
+MAX_LAYOUTS = 20         # whole layouts tried for one scene
 
 
 def footprint_radius(spec):
@@ -49,8 +50,8 @@ def sample_scene(seed, index, n_objects, catalog, cell, params, types=None):
         raise ValueError('one type per object')
     region = params.get('region')
 
-    placed = []
-    for number, object_type in enumerate(types):
+    limits = []
+    for object_type in types:
         radius = footprint_radius(catalog['objects'][object_type])
         half_x = inner[0] / 2 - params['wall_margin'] - radius
         half_y = inner[1] / 2 - params['wall_margin'] - radius
@@ -58,16 +59,28 @@ def sample_scene(seed, index, n_objects, catalog, cell, params, types=None):
             half_x, half_y = min(half_x, region[0]), min(half_y, region[1])
         if half_x < 0 or half_y < 0:
             raise ValueError(f'{object_type} does not fit the bin with these margins')
-        for _ in range(MAX_TRIES):
-            x, y = rng.uniform(-half_x, half_x), rng.uniform(-half_y, half_y)
-            if all(math.hypot(x - other['x'], y - other['y'])
-                   >= radius + other['radius'] + params['min_gap'] for other in placed):
+        limits.append((radius, half_x, half_y))
+
+    # Objects are placed one after the other. In a crowded bin the first ones can leave no room
+    # for the last: the layout is then drawn again from the same generator, so the scene is
+    # still a function of the seed. A scene that fits at the first layout is unchanged.
+    for _ in range(MAX_LAYOUTS):
+        placed, stuck = [], None
+        for number, (object_type, (radius, half_x, half_y)) in enumerate(zip(types, limits)):
+            for _ in range(MAX_TRIES):
+                x, y = rng.uniform(-half_x, half_x), rng.uniform(-half_y, half_y)
+                if all(math.hypot(x - other['x'], y - other['y'])
+                       >= radius + other['radius'] + params['min_gap'] for other in placed):
+                    break
+            else:
+                stuck = (number, object_type)
                 break
-        else:
-            raise ValueError(f'no room for object {number} ({object_type}) in scene {index}')
-        placed.append({'name': f'{object_type}_{number}', 'type': object_type, 'x': x, 'y': y,
-                       'yaw': rng.uniform(-math.pi, math.pi), 'radius': radius})
-    return [{key: value for key, value in item.items() if key != 'radius'} for item in placed]
+            placed.append({'name': f'{object_type}_{number}', 'type': object_type, 'x': x,
+                           'y': y, 'yaw': rng.uniform(-math.pi, math.pi), 'radius': radius})
+        if stuck is None:
+            return [{key: value for key, value in item.items() if key != 'radius'}
+                    for item in placed]
+    raise ValueError(f'no room for object {stuck[0]} ({stuck[1]}) in scene {index}')
 
 
 def main():

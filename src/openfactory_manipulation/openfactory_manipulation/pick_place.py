@@ -39,6 +39,8 @@ class PickPlace:
         self.stages = []
         self.place_index = None
         self.released = None
+        self.target_place = None
+        self.recovery_position = None
 
     def wait_ready(self):
         self.moveit.wait_ready()
@@ -149,6 +151,7 @@ class PickPlace:
 
     def _run(self, object_id, make_plans, spec, pre_grasp_joints=None):
         self.stages, self.place_index, self.released = [], None, None
+        self.target_place, self.recovery_position = None, None
         start = time.monotonic()
         failure, recovered, grasp = None, None, None
         try:
@@ -175,6 +178,9 @@ class PickPlace:
             # where the object was released, None unless the cycle got that far
             'placed_object_pose': None if self.released is None else
             [list(self.released[0]), list(self.released[1])],
+            # where the object was being taken, from the moment a place point was chosen
+            'target_place_pose': None if self.target_place is None else
+            [list(self.target_place[0]), list(self.target_place[1])],
             'planning_s': sum(s['planning_s'] for s in self.stages),
             'execution_s': sum(s['execution_s'] for s in self.stages),
             'total_s': time.monotonic() - start,
@@ -199,6 +205,7 @@ class PickPlace:
                 descent = (code, trajectory, planning_s, fraction)
             if code == core.MOVEIT_SUCCESS or len(plans) == 1:
                 self.place_index = index
+                self.target_place = plan.place_object_pose
                 if len(plans) > 1:
                     self._record('place_select', planning_s=skipped_s, chosen=index,
                                  rejected=rejected)
@@ -225,6 +232,9 @@ class PickPlace:
     def _cycle(self, plans, spec, object_id, pre_grasp_joints):
         plan = plans[0]
         ready = self.cfg['ready_joints']
+        # a recovery opens the fingers as far as this cycle does, never wider: among other
+        # objects and next to a wall, fully open fingers push into what is beside them
+        self.recovery_position = plan.release_position
         known_pose = spec is not None             # `run`: this cycle owns the scene object
         if known_pose:
             self.moveit.remove_object(object_id)  # leftovers of an interrupted cycle
@@ -281,16 +291,16 @@ class PickPlace:
         self._joint_move('return', ready)
 
     def _recover(self, object_id):
-        """Best effort back to a usable state: open, clear the scene object, rise straight up
-        (the gripper may be inside a bin, where free-space planning grazes the walls), then
-        go to ready.
+        """Best effort back to a usable state: open (to the opening of this cycle), clear the
+        scene object, rise straight up (the gripper may be inside a bin, where free-space
+        planning grazes the walls), then go to ready.
 
         Returns {'ok': bool, <step>: outcome} so a failed recovery can be diagnosed.
         """
         steps = {}
         try:
-            result, _ = self.moveit.gripper(self.gripper_cfg['finger']['stroke'],
-                                            self.cfg['grasp']['max_effort'])
+            opening = self.recovery_position or self.gripper_cfg['finger']['stroke']
+            result, _ = self.moveit.gripper(opening, self.cfg['grasp']['max_effort'])
             steps['open'] = bool(result.reached_goal)
             steps['scene_clear'] = self.moveit.remove_object(object_id)
             tool0 = self.moveit.frame_pose(c.TOOL_LINK)

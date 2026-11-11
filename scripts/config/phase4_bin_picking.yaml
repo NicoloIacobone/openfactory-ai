@@ -12,6 +12,9 @@ scene:                          # randomize_scene.sample_scene: resting in catal
 sets:                           # tuning and evaluation seeds are disjoint
   dev: {seed: 1000, scenes: 6, empty_scenes: 1}
   eval: {seed: 1, scenes: 20, empty_scenes: 2}
+  # Added after the first evaluation run on `eval` exposed a recovery fault that was then fixed
+  # (E-004): scenes no code change has seen, same thresholds.
+  confirm: {seed: 2, scenes: 20, empty_scenes: 2}
 
 pick_place_config: null         # null: openfactory_manipulation/config/pick_place.yaml
 

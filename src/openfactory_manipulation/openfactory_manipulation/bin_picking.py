@@ -157,8 +157,11 @@ class BinPicking:
         success, reason = task.attempt_outcome(manipulation['failure_reason'], removed)
 
         slot = None if manipulation['place_index'] is None else slots[manipulation['place_index']]
-        if manipulation['placed_object_pose'] is not None and removed is not False:
-            xyz, quat = manipulation['placed_object_pose']
+        # The place point is taken as soon as the object left the input bin on its way there,
+        # also when the cycle then failed: an object lost over the output bin lies somewhere
+        # around that point, and the next one must not be set down on it.
+        if manipulation['target_place_pose'] is not None and removed is not False:
+            xyz, quat = manipulation['target_place_pose']
             self.state.placed[slot[0]] = {'spec': self._spec(target),
                                           'pose': (tuple(xyz), tuple(quat))}
         self.state.attempts += 1

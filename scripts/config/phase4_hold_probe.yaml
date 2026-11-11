@@ -1,0 +1,36 @@
+# Phase 4 diagnostic (D-015): does a held object turn between the pads during lift and transfer?
+# E-003 part C lost 2 of 10 prisms to a turn about the finger axis that the jaw-opening checks
+# cannot see. Each attempt is a full known-pose pick and place (D-010) of one object while the
+# harness samples its ground-truth pose; `variants` are overrides of pick_place.yaml.
+seed: 1000                      # development seed: no randomness here, recorded for the log format
+object: prism
+position: [0.0, 0.0]            # m, object centre in the input_bin frame
+yaws_deg: [-90, -75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75]   # the grasp repeats every 180
+repeats: 1
+
+pick_place_config: null         # null: openfactory_manipulation/config/pick_place.yaml
+
+variants:
+  baseline: {}
+  slow_lines:                   # half the speed and acceleration of every straight line
+    cartesian: {velocity_scaling: 0.05, acceleration_scaling: 0.05}
+  fast_lines:                   # three times as fast: how sensitive is the hold to dynamics
+    cartesian: {velocity_scaling: 0.3, acceleration_scaling: 0.3}
+  grasp_5mm_higher:             # pads 5 mm higher on the triangular end faces: the fingertips
+    grasp: {floor_clearance: 0.0117}    # are 6.7 mm above the floor in the baseline grasp
+  grasp_10mm_higher:
+    grasp: {floor_clearance: 0.0167}
+  ridge_grasp:                  # pads 25 mm higher: they hold only the top 12 mm under the ridge,
+    grasp: {floor_clearance: 0.0317}    # where the prism is narrower than the pads
+
+evaluation:
+  settle_s: 1.0                 # after spawning and after the cycle, before reading ground truth
+  spawn_tolerance_m: 0.005
+  max_tilt_rad: 0.1             # resting upright, the criterion of E-002 and E-003 (reported)
+  rest_height_m: 0.005
+  sample_period_s: 0.2         # ground-truth pose of the object, read from a thread
+  air_margin_m: 0.02            # the object counts as held while this far above its rest height
+  roll_warning_rad: 0.2618      # 15 degrees: attempts above it are counted
+
+thresholds:                     # goal of D-015 for the adopted variant
+  max_face_changes: 0

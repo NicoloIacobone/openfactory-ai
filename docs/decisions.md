@@ -126,3 +126,26 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Evidence:** pytest in `openfactory_description` (the fingers are longer than any bin wall is high) and in `openfactory_manipulation` (`test_grasps.py`: a cube 5 mm from a wall has a feasible grasp along the wall with these fingers and none with the short ones). Live, 2026-11-11, same cycle and configs as E-002 and E-003: `phase2_pick_place_20261111T130001Z_s1` 3/3 (one per type), 0 of 570 executed states in collision, place error mean 10.2 mm, max 17.5 mm (E-002: 9.9 / 17.5); `phase3_camera_pick_20261111T130115Z_s1` 6/6 (two per type), 0 of 1126 states in collision, cycle 17.7–18.8 s (E-003: median 18.4 s). The fingers open, pre-close, close and release in every cycle, so the joint-limit trap of D-007 did not come back.
 - **Consequences:** `tool0` works 50 mm higher for the same grasp. The numbers of E-002 and E-003 were measured with the short fingers; the smoke runs above show the same behaviour, not a re-run of those tests.
 - **Status:** accepted (user's choice for phase 4, 2026-11-11).
+
+## D-015 — A held prism can turn between the pads: measured, grasp height kept
+
+- **Context:** E-003 part C lost 2 of 10 prisms that ended in the output bin on another rectangular face: the prism turns about the finger axis while it is carried, and the jaw opening cannot see it. Phase 4 had to find the cause and a fix that keeps the friction grasp of D-007 (no attach mechanism).
+- **Measurement:** `scripts/grasp_hold_probe.py` (config `scripts/config/phase4_hold_probe.yaml`, long fingers of D-014) runs the unchanged known-pose cycle of D-010 on a prism at 12 yaws, 15° apart, and samples its ground-truth pose every 0.2 s; the roll about the finger axis while the prism is in the air is compared between variants of `pick_place.yaml`. Runs of 2026-11-11: `phase4_hold_probe_20261111T162928Z_s1000` (five variants × 12), `…165106Z` (baseline × 24), `…165940Z` (ridge grasp × 24); 108 transfers.
+
+| Variant | Transfers | Roll above 9° | Largest roll | Ended on another face |
+|---|---|---|---|---|
+| Baseline: TCP at the object centre, lines at 0.1 scaling | 36 | 5 | 114° | 1 |
+| Lines at half speed (0.05) | 12 | 1 | 10° | 0 |
+| Lines three times as fast (0.3) | 12 | 1 | 16° | 0 |
+| Grasp 5 mm higher | 12 | 1 | 100° | 1 |
+| Grasp 10 mm higher | 12 | 1 | 77° | 1 |
+| Ridge grasp, 25 mm higher | 24 | 21 | 40° | 0 |
+
+- **Findings:**
+  - It is not a slip under acceleration. In every variant about one transfer in ten shows it, whatever the speed, and the roll appears as a jump between two samples during the transfer, after which the prism stays where it went. In the other transfers the roll is below 1°.
+  - The size of the jump is that of a pendulum hanging from one lower corner of a pad. The pad is 20 mm wide, its lower edge 6.7 mm above the prism base in the baseline grasp; the centre of mass is 14.4 mm above the base. Hanging from a pad corner 10 mm off the centre line, the centre of mass comes to rest below it after 77° with the grasp 10 mm higher (measured 77°), 105° with 5 mm (measured 100°) and 128° at the baseline height (measured up to 114°). So the hold sometimes degenerates to one contact point per pad, which carries no torque about the finger axis; this is how the simulator builds contacts between the box pad and the triangular end face of the extruded mesh, not a lack of squeeze (20 N per finger, friction 1.0, object 0.1 kg).
+  - Holding only the ridge, where the prism is narrower than the pads, bounds the swing (no pad corner touches the face) and never changed the face, but the prism then swings in nearly every transfer (median 24°).
+  - No prism was dropped and none left the output bin: 108 of 108 deposited, and the jaw-opening checks passed in all of them.
+- **Decision:** keep the grasp at the object centre and the line speeds of D-010. The hold is rigid in about nine transfers out of ten; one transfer in 60 at this height ended on another face (95 % Wilson interval 0.3–8.9 %), which the ridge grasp (0 of 24, interval 0–13.8 %) does not beat with the data at hand, while it makes the object swing every time. Raising the grasp by 5 or 10 mm is worse and is ruled out.
+- **Consequences:** the goal set for this probe (no prism on another face in 30 transfers) is not met; it is a documented limit of the friction grasp on this shape in this simulator. With the phase 4 place criterion (D-017: at rest inside the output bin, on any face) it is not a failure, and E-004 reports how many deposited objects are not upright. The cell still cannot see the turn: the held object is hidden by the gripper from the only camera. Not tried: torsional friction or a different collision shape for the pads or the prism end faces; either needs a look at what the physics engine supports and a new entry.
+- **Status:** accepted for phase 4.

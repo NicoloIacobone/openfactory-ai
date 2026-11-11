@@ -11,7 +11,8 @@ Simulator and version are those recorded in `docs/environment.md` and `docs/deci
 - `worlds/`: SDF worlds. Keep them small: ground plane, cell table, input bin, destination bin, camera mount, light.
 - `models/`: primitive objects (cube, cylinder, prism) with correct mass and inertia; simple collision shapes, visual meshes only if cheap.
 - `config/bridge.yaml`: `ros_gz_bridge` topic mappings. Always bridge `/clock`.
-- `launch/`: simulation launch with arguments `world`, `seed`, `headless`.
+- `launch/`: simulation launch with arguments `world`, `seed`, `headless`, `camera`, `depth_noise`.
+- `openfactory_simulation/` (Python module) and `scripts/`: sensor models that sit between the bridge and perception (`depth_sensor_model`), pure logic with pytest.
 
 ## Integration
 
@@ -33,7 +34,7 @@ Simulator and version are those recorded in `docs/environment.md` and `docs/deci
 
 ## Resources (3.8 GB VM)
 
-- Run headless (`gz sim -s` or the launch `headless:=true`) for trials; GUI only for debugging.
+- Run headless (`gz sim -s` or the launch `headless:=true`) for trials; GUI only for debugging. With the camera sensor the server still needs the VM display (D-005); `camera:=false` removes the sensor for physics-only runs.
 - Few objects, coarse physics step tuned only as needed, camera at modest resolution and rate.
 - Measure RAM (`free -h`) with simulator + MoveIt + RViz the first time they run together and record it in `docs/environment.md`.
 - Rendering uses the VM's virtio GPU (Mesa); if camera sensors fail to render, record the error before trying workarounds.

@@ -96,7 +96,7 @@ Consequence: decision D-005 in `docs/decisions.md`. Sensor simulations need the 
 Agreed with the user; each is checked in the phase that first needs it.
 
 - Phase 1: Gazebo GUI with `--render-engine ogre` and RAM with simulator + MoveIt 2 + RViz: both checked 2026-10-29, see below.
-- Phase 3: Open3D via pip on aarch64 / Python 3.12.
+- Phase 3: Open3D via pip on aarch64 / Python 3.12. Not checked: dropped on 2026-11-11, the perception baseline does not need it (D-012).
 
 ## Phase 1 installation — 2026-10-29
 
@@ -145,6 +145,19 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 
 `cell.launch.py headless:=true rviz:=false` + `phase2_pick_place_test.py` (30 cycles, E-002): 1.3 GiB used, 2.5 GiB available before and after; Gazebo real-time factor ≈ 1.0 during cycles. With the Gazebo GUI and RViz open, the harness smoke run saw cycles slow down by up to 3× in wall time.
 
+## Phase 3 camera and perception — 2026-11-11
+
+No package installed. Already present and used: `ros-jazzy-vision-msgs` 4.1.1, `ros-jazzy-ros-gz-bridge` 1.0.24, `sensor_msgs_py`, `tf2_ros`, `ament_cmake_python`, `python3-opencv` 4.6.0, NumPy 1.26.4. Open3D (deferred at phase 0) is not needed: the perception baseline uses NumPy and OpenCV only (D-012).
+
+`ros2 launch openfactory_bringup cell.launch.py headless:=true rviz:=false`, started from a terminal of the VM desktop (the camera renders with Ogre 1 on the display, D-005):
+
+- The `rgbd_camera` sensor in the URDF-spawned fixtures model works: `/camera/camera_info` (640 × 360, fx = fy = 502.30, cx 320, cy 180, no distortion) and both images carry `camera_optical_frame`; TF `world → camera_optical_frame` = (0.40, −0.30, 1.46), looking down. Gazebo only warns that `gz_frame_id` is not defined in SDF.
+- `ros_gz_bridge` with `lazy: true` on the two image topics; `/clock` arrives at about 790 Hz.
+- Frame rate delivered to perception: 3.6–4.2 Hz (nominal 5 Hz), intervals 0.2–1.0 s. Real-time factor 1.00.
+- CPU (4 cores, `top`): `gz sim` 50–57 %, `scene_perception` 17–31 %, `depth_sensor_model` 17–22 %, `move_group` 17–25 %, bridge 8 %. The perception pipeline itself takes 9 ms per frame; the rest of the Python nodes' load is ROS message handling.
+- RAM with Gazebo server + MoveIt + depth model + perception + GNOME, no RViz: 1.5 GiB used, 2.3 GiB available. Resident: `gz sim` 345 MB, `scene_perception` 174 MB, `move_group` 101 MB, `depth_sensor_model` 78 MB, bridge 55 MB.
+- With `camera:=false` the fixtures model has no sensor and the cell runs without a display, as in phase 2.
+
 ## Selected stack
 
 | Area | Choice | Why |
@@ -154,6 +167,8 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 | Planning | MoveIt 2 2.12.4, OMPL via `openfactory_moveit_config` | Binary on aarch64; E-001 10/10 |
 | Robot | UR5e (D-004) | Full apt stack (description, Gazebo sim, MoveIt config) exists for Jazzy; Franka would need a source build |
 | Gripper | Project parallel-jaw gripper, `position_controllers/GripperActionController` (D-007) | No install; E-002 30/30 |
+| Camera | Gazebo `rgbd_camera` with D415 geometry, depth error model in `depth_sensor_model` (D-011) | Renders with Ogre 1 on the VM display; no install |
+| Perception | NumPy + OpenCV geometric baseline, `vision_msgs` output (D-012) | Already installed; 9 ms per frame |
 
 Final choices are recorded in `docs/decisions.md` once installation and a phase-1 test confirm them.
 

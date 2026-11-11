@@ -13,6 +13,8 @@ Applies when a task touches the camera, calibration, depth or point-cloud proces
 - Intrinsics come from `camera_info`, never hard-coded.
 - Extrinsics come from TF (camera pose defined in the description/world). Verify them: project a known point into the image and check it lands where expected.
 - Depth units and invalid values (NaN, 0, max range) are handled explicitly.
+- Perception subscribes to the measured depth (`/camera/depth/image_raw`), never to the simulator's ideal depth (`/camera/depth/image_ideal`); `test_no_ground_truth.py` enforces it.
+- Verify with `scripts/phase3_camera_check.py` after any change to the camera, its mount or the bridge.
 - Record camera frames and conventions in `docs/architecture.md`, "Frames".
 
 ## Geometric baseline (phase 3–4)
@@ -33,7 +35,7 @@ Each step is a pure function with pytest tests on synthetic clouds.
 
 ## Libraries
 
-- OpenCV and NumPy first. Open3D has no apt package on this VM; pip availability for aarch64/Python 3.12 is unverified — check before depending on it and record the result in `docs/environment.md`.
+- OpenCV and NumPy first: the phase 3 baseline uses nothing else (D-012). Open3D has no apt package on this VM; pip availability for aarch64/Python 3.12 is unverified — check before depending on it and record the result in `docs/environment.md`.
 - New libraries go in a pinned requirements file and a decision entry.
 
 ## Evaluation

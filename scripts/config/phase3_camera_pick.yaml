@@ -1,0 +1,27 @@
+# Phase 3 closing test (E-003), part C: pick and place of one object at a random pose, with the
+# object type and pose taken from the camera instead of the trial config.
+seed: 1
+trials_per_object: 10         # objects interleaved: cube, cylinder, prism, cube, ...
+objects: [cube, cylinder, prism]
+
+# Random pose (randomize_scene.sample_scene): any yaw, centre inside `region`. The palm
+# (0.12 m along the finger axis) goes below the bin rim, so with an arbitrary yaw the object
+# centre must stay 0.075 m from the walls; phase 4 widens this with grasp candidates.
+scene:
+  wall_margin: 0.012
+  min_gap: 0.02
+  region: [0.075, 0.035]      # m, half extents of the pickable centre region in input_bin
+
+pick_place_config: null       # null: openfactory_manipulation/config/pick_place.yaml
+
+evaluation:
+  settle_s: 1.0               # after spawning and after the cycle, before reading ground truth
+  spawn_tolerance_m: 0.005    # the object must rest this close to where it was spawned
+  max_tilt_rad: 0.1           # placed object upright
+  rest_height_m: 0.005        # placed object on the destination floor
+  record_period_s: 0.1        # executed states sampled from /joint_states and re-checked by MoveIt
+
+thresholds:
+  min_successes: 27           # of 30
+  min_successes_per_object: 8 # of 10
+  max_invalid_states: 0

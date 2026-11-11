@@ -1,0 +1,46 @@
+# Phase 3 closing test (E-003), parts A and B: camera calibration check and perception accuracy
+# against simulator ground truth. Thresholds were fixed before the evaluation run.
+strategy: geometric_height_map
+
+# -- part A: calibration (scripts/phase3_camera_check.py) ----------------------------------------
+calibration:
+  bin_margin: 0.01              # m, floor points this far from the bin walls enter the plane fit
+  cube_poses:                   # known points: cube at (x, y, yaw) in the input_bin frame
+    - [0.0, 0.0, 0.0]
+    - [0.09, 0.05, 0.5]
+    - [-0.09, -0.05, -0.4]
+  top_tolerance: 0.003          # m, pixels this close to the cube top height are its top face
+  settle_s: 1.0
+  thresholds:
+    max_focal_error: 0.005      # relative, camera_info fx and fy against camera.yaml
+    max_principal_point_px: 1.0
+    max_plane_offset_m: 0.002   # bin floor seen by the camera against z = 0 of input_bin (TF)
+    max_plane_tilt_rad: 0.0087  # 0.5 degrees
+    max_reprojection_px: 2.0    # known point projected with TF + K against where it is seen
+    max_depth_error_m: 0.002    # depth at the known point against TF
+    max_noise_ratio_error: 0.25 # measured depth noise on the floor against the model, relative
+
+# -- part B: perception accuracy (scripts/phase3_perception_test.py) ----------------------------
+scene:                          # randomize_scene.sample_scene: separate objects, catalog orientation
+  wall_margin: 0.012            # m, object footprint to the bin walls
+  min_gap: 0.02                 # m, between object footprints
+objects_cycle: [1, 2, 3]        # objects per scene, repeated
+sets:                           # tuning and evaluation seeds are disjoint
+  dev: {seed: 1000, scenes: 10, empty_scenes: 2}
+  eval: {seed: 1, scenes: 40, empty_scenes: 4}
+
+evaluation:
+  settle_s: 1.0                 # after spawning, before reading ground truth and asking for a view
+  spawn_tolerance_m: 0.005      # objects must rest this close to where they were spawned
+  max_tilt_rad: 0.1             # and upright
+  view_timeout_s: 10.0
+  match_distance_m: 0.02        # a detection farther than this from every object is a false positive
+
+thresholds:
+  min_recall: 0.95
+  min_precision: 0.95
+  min_class_accuracy: 0.95
+  max_xy_median_m: 0.003
+  max_xy_p95_m: 0.008
+  max_yaw_median_rad: 0.0524    # 3 degrees
+  max_yaw_p95_rad: 0.1396       # 8 degrees

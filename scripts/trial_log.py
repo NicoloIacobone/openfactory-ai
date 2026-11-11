@@ -1,7 +1,8 @@
 """Trial log format shared by every benchmark producer (docs/agent-guides/benchmarking.md).
 
 One JSON object per attempt in data/trials/<run_id>/attempts.jsonl (the VM writes to
-~/openfactory_data/trials/), plus summary.json. ROS-free.
+~/openfactory_data/trials/), plus summary.json. Perception-only runs (no robot motion) write
+one object per scene in scenes.jsonl with the PERCEPTION_FIELDS. ROS-free.
 """
 
 import hashlib
@@ -17,6 +18,12 @@ REQUIRED_FIELDS = (
     'perception_s', 'planning_s', 'execution_s', 'total_s',
 )
 TIMINGS = ('perception_s', 'planning_s', 'execution_s', 'total_s')
+# One record per observed scene of a perception-only run (perception_eval.score_scene)
+PERCEPTION_FIELDS = (
+    'run_id', 'trial_id', 'git_commit', 'seed', 'config', 'strategy', 'truth', 'detections',
+    'n_objects', 'n_detections', 'matches', 'missed', 'false_positives', 'success',
+    'failure_reason', 'perception_s',
+)
 
 
 def config_hash(path):
@@ -46,9 +53,8 @@ def git_commit(repo_root):
     return 'unknown'
 
 
-def validate(record):
-    """Raise ValueError unless the record has every required field with a sane value."""
-    missing = [name for name in REQUIRED_FIELDS if name not in record]
+def _validate(record, fields, timings):
+    missing = [name for name in fields if name not in record]
     if missing:
         raise ValueError(f'missing fields: {missing}')
     if not isinstance(record['success'], bool):
@@ -57,16 +63,31 @@ def validate(record):
         raise ValueError('a record fails exactly when it has a failure_reason')
     if set(record['config']) != {'path', 'sha256_12'}:
         raise ValueError('config must be {path, sha256_12}')
-    for name in TIMINGS:
+    for name in timings:
         value = record[name]
         if value is not None and (not isinstance(value, (int, float)) or value < 0):
             raise ValueError(f'{name} must be None or a non-negative number')
     return record
 
 
-def append(path, record):
-    """Validate and append one record to a JSONL file."""
-    validate(record)
+def validate(record):
+    """Raise ValueError unless the attempt record has every required field with a sane value."""
+    return _validate(record, REQUIRED_FIELDS, TIMINGS)
+
+
+def validate_perception(record):
+    """Raise ValueError unless the perception scene record is complete and consistent."""
+    _validate(record, PERCEPTION_FIELDS, ('perception_s',))
+    if record['n_objects'] != len(record['truth']):
+        raise ValueError('n_objects must count the ground-truth objects')
+    if record['n_detections'] != len(record['detections']):
+        raise ValueError('n_detections must count the detections')
+    return record
+
+
+def append(path, record, check=validate):
+    """Validate (with `check`) and append one record to a JSONL file."""
+    check(record)
     with open(path, 'a') as log:
         log.write(json.dumps(record) + '\n')
 

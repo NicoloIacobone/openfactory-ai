@@ -93,3 +93,39 @@ def test_config_ref(tmp_path):
     path.write_text('a: 1\n')
     ref = tl.config_ref(path)
     assert ref['path'] == str(path) and len(ref['sha256_12']) == 12
+
+
+def _scene(**overrides):
+    record = {
+        'run_id': 'r', 'trial_id': 0, 'git_commit': 'abc', 'seed': 1,
+        'config': {'path': 'c.yaml', 'sha256_12': '0123456789ab'}, 'strategy': 's',
+        'truth': [{'name': 'cube_0'}], 'detections': [{'class_id': 'cube'}],
+        'n_objects': 1, 'n_detections': 1, 'matches': [], 'missed': [], 'false_positives': [],
+        'success': True, 'failure_reason': None, 'perception_s': 0.2,
+    }
+    record.update(overrides)
+    return record
+
+
+def test_perception_record_is_validated_and_appended(tmp_path):
+    path = tmp_path / 'scenes.jsonl'
+    tl.append(path, _scene(), tl.validate_perception)
+    assert tl.read(path) == [_scene()]
+
+
+@pytest.mark.parametrize('overrides', [
+    {'n_objects': 2},
+    {'n_detections': 0},
+    {'success': False},
+    {'perception_s': -0.1},
+])
+def test_perception_record_rejected(overrides):
+    with pytest.raises(ValueError):
+        tl.validate_perception(_scene(**overrides))
+
+
+def test_perception_record_reports_missing_fields():
+    record = _scene()
+    del record['truth']
+    with pytest.raises(ValueError, match='truth'):
+        tl.validate_perception(record)

@@ -48,7 +48,7 @@ def test_table_collides_with_moving_arm_links():
         frozenset((p.get('link1'), p.get('link2'))) for p in SRDF.findall('disable_collisions')}
     moving = ['upper_arm_link', 'forearm_link', 'wrist_1_link', 'wrist_2_link', 'wrist_3_link',
               'gripper_palm', 'left_finger', 'right_finger']
-    for fixture in ('table', 'floor', 'input_bin', 'output_bin'):
+    for fixture in ('table', 'floor', 'input_bin', 'output_bin', 'camera_link'):
         for link in moving:
             assert frozenset((fixture, link)) not in disabled
 

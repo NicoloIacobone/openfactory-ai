@@ -20,3 +20,11 @@ bins:
   output:
     xy: [0.15, 0.30]
     inner_size: [0.30, 0.22, 0.10]
+
+# Fixed RGB-D camera above the input bin (D-011): pose of camera_link in the table frame (centre
+# of the table top). camera_link is the optical centre, REP 103: x along the view, y left and
+# z up in the image. rpy (0, pi/2, pi/2) looks straight down with image right = world +x and
+# image up = world +y. Sensor parameters: config/camera.yaml.
+camera_mount:
+  xyz: [0.15, -0.30, 0.71]    # over the input bin centre, 0.70 m above the bin floor
+  rpy: [0.0, 1.5707963267948966, 1.5707963267948966]

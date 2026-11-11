@@ -42,4 +42,11 @@
   <disable_collisions link1="input_bin" link2="output_bin" reason="Never"/>
   <disable_collisions link1="input_bin" link2="base_link_inertia" reason="Never"/>
   <disable_collisions link1="output_bin" link2="base_link_inertia" reason="Never"/>
+  <!-- The camera hangs above the input bin, out of reach of the base and the shoulder -->
+  <disable_collisions link1="camera_link" link2="table" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="floor" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="input_bin" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="output_bin" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="base_link_inertia" reason="Never"/>
+  <disable_collisions link1="camera_link" link2="shoulder_link" reason="Never"/>
 </robot>

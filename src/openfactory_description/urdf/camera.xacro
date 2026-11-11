@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  <!-- Fixed RGB-D camera (D-011). `camera_link` is the optical centre on the front face of the
+       body (x along the view, y left, z up in the image); `camera_optical_frame` is the same
+       point with the optical convention (z along the view, x right, y down), the frame of every
+       image and camera_info. Mount pose: config/cell.yaml `camera_mount`; sensor: config/camera.yaml.
+       sensor:=true adds the Gazebo rgbd_camera, for the fixtures model only. -->
+  <xacro:macro name="openfactory_camera" params="parent cell camera sensor:=false">
+    <xacro:property name="mount" value="${cell['camera_mount']}"/>
+    <xacro:property name="size" value="${camera['body']['size']}"/>
+    <xacro:property name="mass" value="${camera['body']['mass']}"/>
+    <xacro:property name="image" value="${camera['image']}"/>
+    <xacro:property name="sim" value="${camera['simulator']}"/>
+    <!-- the body extends behind the optical centre -->
+    <xacro:property name="body_xyz" value="${-size[0] / 2} 0 0"/>
+
+    <link name="camera_link">
+      <visual>
+        <origin xyz="${body_xyz}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${size[0]} ${size[1]} ${size[2]}"/>
+        </geometry>
+        <material name="camera_dark">
+          <color rgba="0.15 0.15 0.15 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="${body_xyz}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${size[0]} ${size[1]} ${size[2]}"/>
+        </geometry>
+      </collision>
+      <!-- static in Gazebo (fixed to world); the inertia only keeps the URDF parsers happy -->
+      <inertial>
+        <origin xyz="${body_xyz}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${mass * (size[1] ** 2 + size[2] ** 2) / 12}" ixy="0" ixz="0"
+                 iyy="${mass * (size[0] ** 2 + size[2] ** 2) / 12}" iyz="0"
+                 izz="${mass * (size[0] ** 2 + size[1] ** 2) / 12}"/>
+      </inertial>
+    </link>
+
+    <joint name="camera_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="camera_link"/>
+      <origin xyz="${mount['xyz'][0]} ${mount['xyz'][1]} ${mount['xyz'][2]}"
+              rpy="${mount['rpy'][0]} ${mount['rpy'][1]} ${mount['rpy'][2]}"/>
+    </joint>
+
+    <link name="camera_optical_frame"/>
+
+    <joint name="camera_optical_joint" type="fixed">
+      <parent link="camera_link"/>
+      <child link="camera_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi / 2} 0 ${-pi / 2}"/>
+    </joint>
+
+    <xacro:if value="${sensor}">
+      <!-- A Gazebo camera looks along the x axis of its link; messages carry the optical frame -->
+      <gazebo reference="camera_link">
+        <sensor name="rgbd" type="rgbd_camera">
+          <always_on>true</always_on>
+          <update_rate>${image['rate_hz']}</update_rate>
+          <topic>${sim['topic']}</topic>
+          <gz_frame_id>camera_optical_frame</gz_frame_id>
+          <camera>
+            <horizontal_fov>${radians(image['hfov_deg'])}</horizontal_fov>
+            <image>
+              <width>${image['width']}</width>
+              <height>${image['height']}</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>${sim['clip'][0]}</near>
+              <far>${sim['clip'][1]}</far>
+            </clip>
+            <optical_frame_id>camera_optical_frame</optical_frame_id>
+          </camera>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+</robot>

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- UR5e with the parallel-jaw gripper, mounted on the cell table, with gz_ros2_control.
-     include_fixtures:=true  -> robot + fixed infrastructure (floor, table, bins): robot_state_publisher,
-                                MoveIt (fixtures are collision links).
+     include_fixtures:=true  -> robot + fixed infrastructure (floor, table, bins, camera):
+                                robot_state_publisher, MoveIt (fixtures are collision links).
      include_fixtures:=false -> robot only: spawned in Gazebo next to the separate fixtures model
                                 (the Gazebo world has its own ground plane). -->
 <robot xmlns:xacro="http://wiki.ros.org/xacro" name="ur">
@@ -9,6 +9,7 @@
   <xacro:arg name="include_fixtures" default="true"/>
   <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
   <xacro:arg name="gripper_file" default="$(find openfactory_description)/config/gripper.yaml"/>
+  <xacro:arg name="camera_file" default="$(find openfactory_description)/config/camera.yaml"/>
   <xacro:arg name="simulation_controllers" default=""/>
 
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
@@ -16,9 +17,11 @@
   <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
   <xacro:include filename="$(find openfactory_description)/urdf/bin.xacro"/>
   <xacro:include filename="$(find openfactory_description)/urdf/gripper.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/camera.xacro"/>
 
   <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
   <xacro:property name="gripper" value="${xacro.load_yaml('$(arg gripper_file)')}"/>
+  <xacro:property name="camera" value="${xacro.load_yaml('$(arg camera_file)')}"/>
   <xacro:property name="table_top_z" value="${cell['table']['xyz'][2] + cell['table']['size'][2]}"/>
   <xacro:property name="mount_xyz" value="${cell['robot_mount']['xyz']}"/>
   <xacro:property name="mount_rpy" value="${cell['robot_mount']['rpy']}"/>
@@ -45,6 +48,8 @@
     <xacro:openfactory_table parent="world" cell="${cell}"/>
     <xacro:openfactory_bin name="input" parent="table" cell="${cell}"/>
     <xacro:openfactory_bin name="output" parent="table" cell="${cell}"/>
+    <!-- camera body and frames only; the Gazebo sensor lives in the fixtures model -->
+    <xacro:openfactory_camera parent="table" cell="${cell}" camera="${camera}"/>
   </xacro:if>
 
   <!-- base_link pose in world: table top centre + mount offset (the table is not rotated) -->

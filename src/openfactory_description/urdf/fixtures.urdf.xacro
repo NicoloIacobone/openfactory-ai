@@ -1,16 +1,24 @@
 <?xml version="1.0"?>
-<!-- Cell fixtures (table + bins) as one Gazebo model fixed to the world, spawned next to the
-     robot so that they collide with it (links of a single model do not collide with each other).
-     The same macros build the fixtures inside the cell URDF for TF and MoveIt. -->
+<!-- Cell fixtures (table, bins, camera) as one Gazebo model fixed to the world, spawned next to
+     the robot so that they collide with it (links of a single model do not collide with each
+     other). The same macros build the fixtures inside the cell URDF for TF and MoveIt.
+     camera_sensor:=false leaves the camera body without its Gazebo sensor: physics-only runs
+     then need no display (D-005). -->
 <robot xmlns:xacro="http://wiki.ros.org/xacro" name="fixtures">
   <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
+  <xacro:arg name="camera_file" default="$(find openfactory_description)/config/camera.yaml"/>
+  <xacro:arg name="camera_sensor" default="true"/>
   <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
+  <xacro:property name="camera" value="${xacro.load_yaml('$(arg camera_file)')}"/>
 
   <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
   <xacro:include filename="$(find openfactory_description)/urdf/bin.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/camera.xacro"/>
 
   <link name="world"/>
   <xacro:openfactory_table parent="world" cell="${cell}"/>
   <xacro:openfactory_bin name="input" parent="table" cell="${cell}"/>
   <xacro:openfactory_bin name="output" parent="table" cell="${cell}"/>
+  <xacro:openfactory_camera parent="table" cell="${cell}" camera="${camera}"
+                            sensor="$(arg camera_sensor)"/>
 </robot>

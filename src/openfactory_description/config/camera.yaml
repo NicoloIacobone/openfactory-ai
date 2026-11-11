@@ -1,0 +1,26 @@
+# Fixed RGB-D camera (D-011), modelled on the depth stream of the Intel RealSense D415
+# (datasheet 337029-017, September 2023). SI units. Mount pose: config/cell.yaml `camera_mount`.
+#
+# One optical centre for colour and depth (depth registered to colour); the stereo pair and the
+# offset between the imagers are not modelled.
+
+body:
+  size: [0.020, 0.099, 0.023]   # x (depth, along the view), y (width), z (height): 99 x 23 x 20 mm
+  mass: 0.064
+
+image:
+  width: 640                    # a D415 depth mode; kept low for the 3.8 GB VM
+  height: 360
+  hfov_deg: 65.0                # depth FOV H:65 / V:40 (HD 16:9); square pixels give V 39.4
+  rate_hz: 5.0
+
+depth:
+  min_z: 0.24                   # m, Min-Z at 640x360: nearer pixels are invalid
+  max_z: 2.0                    # m, the datasheet depth KPIs hold up to 2 m: farther pixels are invalid
+  baseline: 0.055               # m, converts disparity noise into depth noise
+  disparity_noise_px: 0.08      # RMS subpixel error of the depth model (sigma_z = z^2 sigma_d / (f B))
+  quantization: 0.001           # m, depth unit of the Z16 stream
+
+simulator:
+  topic: camera                 # Gazebo topic prefix: <topic>/image, /depth_image, /camera_info
+  clip: [0.05, 5.0]             # m, render range; min_z / max_z are applied by the depth model

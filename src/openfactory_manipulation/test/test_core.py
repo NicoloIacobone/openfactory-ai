@@ -4,6 +4,7 @@ import pytest
 
 from openfactory_manipulation.core import geometry as g
 from openfactory_manipulation.core import pick_place as pp
+from openfactory_manipulation.core import selection as sel
 
 GRIPPER = {
     'palm': {'size': [0.06, 0.12, 0.04]},
@@ -142,3 +143,38 @@ def test_raised_moves_along_world_z_only():
     pose = ((0.1, 0.2, 0.3), pp.top_down_quat(0.7))
     up = pp.raised(pose, 0.05)
     assert up[0] == pytest.approx((0.1, 0.2, 0.35)) and up[1] == pose[1]
+
+
+@pytest.mark.parametrize('reference, pose', [
+    (((0.4, -0.3, 0.76), (0.0, 0.0, 0.0, 1.0)), ((0.45, -0.28, 0.785), g.quat_from_rpy(0, 0, 0.5))),
+    (((0.1, 0.2, 0.3), g.quat_from_rpy(0.2, -0.4, 1.1)),
+     ((-0.3, 0.5, 0.9), g.quat_from_rpy(1.0, 0.3, -2.0))),
+])
+def test_relative_inverts_compose(reference, pose):
+    xyz, quat = g.compose(reference, g.relative(reference, pose))
+    assert xyz == pytest.approx(pose[0])
+    assert quat == pytest.approx(pose[1]) or quat == pytest.approx([-v for v in pose[1]])
+
+
+def _hypothesis(class_id, score, xyz=(0.4, -0.3, 0.785), yaw=0.0):
+    return {'class_id': class_id, 'score': score, 'xyz': xyz, 'quat': g.quat_from_rpy(0, 0, yaw)}
+
+
+def test_select_object_takes_the_most_confident_catalog_hypothesis():
+    catalog = {'objects': {'cube': {}, 'prism': {}}}
+    hypotheses = [_hypothesis('cube', 0.7), _hypothesis('unknown', 0.99),
+                  _hypothesis('prism', 0.9), _hypothesis('cube', 0.4)]
+    assert sel.select_object(hypotheses, catalog, 0.5)['class_id'] == 'prism'
+    assert sel.select_object(hypotheses, catalog, 0.95) is None
+    assert sel.select_object([], catalog, 0.5) is None
+    assert sel.select_object([_hypothesis('unknown', 0.99)], catalog, 0.5) is None
+
+
+def test_pose_in_bin_of_a_world_hypothesis():
+    bin_pose = ((0.40, -0.30, 0.76), g.quat_from_rpy(0.0, 0.0, 0.0))
+    x, y, yaw = sel.pose_in_bin(bin_pose, _hypothesis('cube', 0.9, (0.45, -0.28, 0.785), 0.5))
+    assert (x, y, yaw) == pytest.approx((0.05, 0.02, 0.5))
+    # a rotated bin: the same world pose seen from a frame turned by 90 degrees
+    turned = ((0.40, -0.30, 0.76), g.quat_from_rpy(0.0, 0.0, math.pi / 2))
+    x, y, yaw = sel.pose_in_bin(turned, _hypothesis('cube', 0.9, (0.45, -0.28, 0.785), 0.5))
+    assert (x, y, yaw) == pytest.approx((0.02, -0.05, 0.5 - math.pi / 2))

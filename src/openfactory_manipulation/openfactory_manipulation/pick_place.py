@@ -1,7 +1,9 @@
-"""One deterministic pick-and-place cycle at a known object pose (phase 2 baseline).
+"""One deterministic pick-and-place cycle of a catalog object resting in the input bin.
 
-The object pose is fixed infrastructure input (D-009): a catalog type and (x, y, yaw) in the
-input_bin frame, given by the caller. Nothing here reads simulator ground truth.
+The object pose is an input: a catalog type and (x, y, yaw) in the input_bin frame. In the
+phase 2 baseline it is a known pose given by the caller as fixed infrastructure (D-009); from
+phase 3 it can be a perception hypothesis (camera_pick.perceive). Nothing here reads simulator
+state.
 
 Sequence (docs/agent-guides/manipulation.md): ready -> open -> scene object -> pre-grasp (free
 plan) -> approach (line) -> pre-close -> close + contact check -> attach -> lift (line) + hold
@@ -84,8 +86,23 @@ class PickPlace:
 
     # -- cycle ----------------------------------------------------------------------------
 
-    def run(self, object_type, object_id, x, y, yaw):
-        """Pick `object_type` resting at (x, y, yaw) in input_bin, place it in output_bin."""
+    def go_ready(self):
+        """Move to the ready configuration outside a cycle (arm clear of the input bin, e.g.
+        before a camera view); False if planning or execution fails."""
+        try:
+            code, trajectory, _ = self.moveit.plan_joints(self.cfg['ready_joints'])
+            if code != core.MOVEIT_SUCCESS:
+                return False
+            code, _ = self.moveit.execute(trajectory)
+            return code == core.MOVEIT_SUCCESS
+        except ManipulationError:
+            return False
+
+    def run(self, object_type, object_id, x, y, yaw, source='known_pose'):
+        """Pick `object_type` resting at (x, y, yaw) in input_bin, place it in output_bin.
+
+        `source` records where the pose comes from: 'known_pose' or 'perception'.
+        """
         self.stages = []
         spec = self.catalog['objects'][object_type]
         start = time.monotonic()
@@ -111,7 +128,8 @@ class PickPlace:
         return {
             'object_type': object_type,
             'object_id': object_id,
-            'known_pose': {'frame': c.INPUT_BIN_FRAME, 'x': x, 'y': y, 'yaw': yaw},
+            'object_pose': {'frame': c.INPUT_BIN_FRAME, 'x': x, 'y': y, 'yaw': yaw,
+                            'source': source},
             'grasp': grasp,
             'success': failure is None,
             'failure_reason': failure,

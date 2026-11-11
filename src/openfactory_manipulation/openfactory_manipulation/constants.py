@@ -21,5 +21,6 @@ EXECUTE_ACTION = '/execute_trajectory'
 CARTESIAN_SERVICE = '/compute_cartesian_path'
 PLANNING_SCENE_SERVICE = '/apply_planning_scene'
 GRIPPER_ACTION = '/gripper_controller/gripper_cmd'
+OBJECTS_TOPIC = '/perception/objects'
 
 DESCRIPTION_PACKAGE = 'openfactory_description'

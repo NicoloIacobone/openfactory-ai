@@ -1,4 +1,5 @@
-# Deterministic top-down pick and place (phase 2). SI units, radians.
+# Deterministic top-down pick and place (phase 2), object pose known or perceived (phase 3).
+# SI units, radians.
 
 # Arm configuration at the start and end of every cycle: gripper_tcp 0.29 m above the bin floors,
 # between the bins, pointing down (MoveIt IK 2026-11-10).
@@ -37,6 +38,11 @@ place:
 
 scene:
   object_clearance: 0.002            # m, planning-scene object raised above the floor it rests on
+
+perception:                          # camera-driven picks (phase 3)
+  min_score: 0.5                     # hypotheses below this confidence are never picked
+  settle_s: 0.5                      # s at ready before asking for a view
+  timeout_s: 10.0                    # s waiting for a view newer than that
 
 timeouts:
   server_s: 10.0                     # waiting for MoveIt / controllers

@@ -41,6 +41,15 @@ def compose(parent, child):
     return tuple(a + b for a, b in zip(pp, offset)), quat_multiply(pq, cq)
 
 
+def relative(reference, pose):
+    """`pose` expressed in the frame `reference` (both given in the same frame): the inverse
+    of compose, compose(reference, relative(reference, pose)) == pose."""
+    (rp, (rx, ry, rz, rw)), (p, q) = reference, pose
+    inverse = (-rx, -ry, -rz, rw)
+    return (quat_rotate(inverse, tuple(a - b for a, b in zip(p, rp))),
+            quat_multiply(inverse, q))
+
+
 def yaw_of(q):
     """Rotation about z of a quaternion (exact when the rotation is about z only)."""
     x, y, z, w = q

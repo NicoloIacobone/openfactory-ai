@@ -3,7 +3,7 @@
 <package format="3">
   <name>openfactory_manipulation</name>
   <version>0.1.0</version>
-  <description>Deterministic pick and place: grasp planning, MoveIt 2 execution, gripper.</description>
+  <description>Pick and place at a known or perceived object pose: object selection, MoveIt 2 execution, gripper.</description>
   <maintainer email="etaspam12@gmail.com">Nico</maintainer>
   <license>Apache-2.0</license>
 
@@ -16,6 +16,7 @@
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>shape_msgs</exec_depend>
+  <exec_depend>vision_msgs</exec_depend>
   <exec_depend>tf2_ros_py</exec_depend>
 
   <test_depend>python3-pytest</test_depend>

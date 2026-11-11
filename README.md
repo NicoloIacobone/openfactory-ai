@@ -34,7 +34,7 @@ Each phase is gated by a stable, measured previous phase.
 | Path | Contents |
 |---|---|
 | `src/` | ROS 2 packages `openfactory_*` (created as each responsibility appears) |
-| `scripts/` | Scene randomization and benchmark runners |
+| `scripts/` | Scene randomization, benchmark runners, ground-truth evaluation |
 | `tests/` | Unit, integration and regression tests |
 | `docs/architecture.md` | Components, interfaces, frames |
 | `docs/decisions.md` | Stack and design decisions with rationale |
@@ -81,6 +81,13 @@ ros2 run openfactory_manipulation pick_perceived_once
 python3 <repo>/scripts/phase3_camera_check.py
 python3 <repo>/scripts/phase3_perception_test.py
 python3 <repo>/scripts/phase3_camera_pick_test.py
+
+# Bin picking: spawn five objects at seeded random poses, then let the cell empty the bin on its own
+python3 <repo>/scripts/randomize_scene.py --seed 1000 --index 0 --objects 5 --wall-margin 0.008 --min-gap 0.010 --spawn
+ros2 run openfactory_manipulation bin_picking
+
+# Phase 4 closing test: 20 seeded scenes of five objects and 2 empty bins, judged from ground truth
+python3 <repo>/scripts/benchmark.py                      # --set dev | confirm | confirm2 for the other scene sets
 ```
 
 The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.

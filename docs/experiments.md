@@ -137,3 +137,63 @@ Without perception's principal-point correction the known point is seen (−0.50
 - Development runs before these (not counted, code not yet committed): `phase3_perception_dev_20261111T101505Z_s1000` 19/19 objects, xy median 0.9 mm before the principal-point correction; `phase3_camera_pick_20261111T101647Z_s1000` 6/6; `phase2_pick_place_20261111T101530Z_s1` 3/3 (E-002 cycle with the camera body as a MoveIt obstacle, 0 of 578 states in collision). The first calibration run failed its reprojection check at 15 px because the check script counted the bin-wall pixels at the cube's top height; fixed in the script, not in the camera.
 - Open for phase 4: a held prism can turn about the finger axis during the transfer (grasp point, transfer acceleration or a place check from the camera); verification of the output bin by perception, so the cell itself detects a wrong place; grasp candidates near the walls; clutter.
 - Conclusion: phase 3 measurable test passes on all three parts.
+
+## E-004 — Phase 4 closing test: autonomous random bin picking (2026-11-11)
+
+- Question: does the cell, on its own, empty an input bin holding several objects at random poses, close to each other and to the walls, into the output bin, with collision-aware motions, and does it know when a pick failed and when the bin is empty?
+- Strategy: `geometric_top_down_ranked`: perception `geometric_height_map` (D-012, unchanged since E-003), grasp selection with hard filters and a baseline score (D-016), bin-picking loop that verifies each pick with the next view and remembers what it placed (D-017), gripper with long fingers (D-014).
+- Scenes: 5 objects each, types drawn by the scene seed, resting in their catalog orientation, random position and yaw anywhere in the bin (footprint circles at least 8 mm from the walls and 10 mm from each other), plus 2 empty bins per set. The harness spawns a scene and never touches it again; the cell runs `BinPicking.step()` until it ends the scene itself.
+- Success of an attempt: the cell reports it (every stage and finger check, and the object gone from the input bin in its next view) **and** ground truth shows that object at rest inside the output bin, on any face (D-017) **and** no executed state (`/joint_states` every 0.1 s, arm and fingers, re-checked by MoveIt) is in collision. Completion: objects deposited / objects spawned.
+- Seeds: tuning seed 1000 (6 scenes + 1 empty) / evaluation seed 1 (20 + 2), fixed with the thresholds before any run; confirmation seeds 2 and 3 (20 + 2 each), added during the evaluation as described below. Camera depth model on, seed 1.
+- Commit / config: `17df986`; `scripts/config/phase4_bin_picking.yaml` (sha256 `32f3cdb6ad03`), `openfactory_manipulation/config/pick_place.yaml`, `openfactory_perception/config/perception.yaml`. Cell: `ros2 launch openfactory_bringup cell.launch.py headless:=true rviz:=false` on the VM display. Logs in `data/trials/` (copied from the VM).
+- Re-run, in the VM with the cell launched: `python3 scripts/benchmark.py` (evaluation set), `--set dev`, `--set confirm`, `--set confirm2`.
+
+### Result with the final code
+
+| Metric | Evaluation, seed 1 (`phase4_bin_picking_eval_20261111T194656Z_s1`) | Confirmation, seed 2 (`…confirm_20261111T191258Z_s2`) | Confirmation, seed 3 (`…confirm2_20261111T202034Z_s3`) | Pass |
+|---|---|---|---|---|
+| Completion (95% Wilson CI) | 99/100 (0.95–1.00) | 99/100 (0.95–1.00) | 97/100 (0.92–0.99) | ≥ 0.85 |
+| Completion cube / cylinder / prism | 30/30, 36/36, 33/34 | 20/21, 48/48, 31/31 | 31/31, 34/35, 32/34 | each ≥ 0.80 |
+| Pick success (attempts) | 99/99 (0.96–1.00) | 99/100 (0.95–1.00) | 97/98 (0.94–1.00) | ≥ 0.80 |
+| Executed states in collision | 0 of 17 995 | 0 of 18 201 | 0 of 17 731 | 0 |
+| Attempts the cell believed while ground truth disagrees | 0 | 0 | 0 | ≤ 2 |
+| Failures the cell reported while the object did arrive | 0 | 0 | 0 | — |
+| Detected failures followed by a return to ready with a view | none to recover | 1/1 | 1/1 | ≥ 0.90 |
+| Attempts on the 2 empty bins | 0 | 0 | 0 | 0 |
+| Scenes cleared; end reason correct | 19/20; 22/22 | 19/20; 22/22 | 17/20; 22/22 | — |
+| Scene ends | 21 `bin_empty`, 1 `no_feasible_grasp` | 22 `bin_empty` | 20 `bin_empty`, 2 `no_feasible_grasp` | — |
+| Failures by reason (stage) | none | 1 `grasp_slipped` (after transfer) | 1 `grasp_slipped` (after transfer) | — |
+| Candidates; rejected by walls / neighbours / MoveIt | 1162; 173 / 73 / 0 | 1395; 277 / 79 / 0 | 1178; 242 / 40 / 0 | — |
+| Other objects disturbed by a pick | 0 | 0 | 0 | — |
+| Cycle time per attempt, median (min–max) | 18.1 s (15.4–20.9) | 18.3 s (15.5–20.9) | 18.2 s (15.7–20.6) | — |
+| of which perception / planning with selection / execution, median | 0.78 / 0.13 / 17.1 s | 0.81 / 0.13 / 17.3 s | 0.73 / 0.12 / 17.3 s | — |
+| Target seen by perception: class; xy error median / max | 99/99; 0.26 / 0.92 mm | 100/100; 0.33 / 0.80 mm | 98/98; 0.22 / 0.86 mm | — |
+| Deposited objects resting upright (criterion of E-003) | 96/99 | 99/99 | 95/97 | reported |
+| Distance of the deposited object from its place point, median / 95th / max | 4.7 / 12.1 / 19.4 mm | 4.6 / 5.1 / 18.0 mm | 4.7 / 6.0 / 35.5 mm | — |
+
+Development set with the same code (`phase4_bin_picking_dev_20261111T190309Z_s1000`): 29/29 attempts, 29/30 objects, 0 of 5235 states in collision. RAM with Gazebo, MoveIt, depth model and perception, no RViz: 1.4–1.5 GiB used, 2.3–2.4 GiB available, during every run.
+
+All three sets pass every threshold. Over the three: 295 of 297 attempts, 295 of 300 objects, 0 of 53 927 executed states in collision, the cell's verdict equal to ground truth on all 297 attempts.
+
+### The five objects that were not deposited
+
+- Three were never attempted and the scene ended as `no_feasible_grasp`, which was true: a prism 48 mm from a wall with its only finger direction pointing at it (seed 1 scene 7) and one like it (seed 3 scene 17), and a cylinder in a corner 35 and 38 mm from two walls (seed 3 scene 3). The fingers need 45 to 48 mm on the side they close from (D-016).
+- Two slipped out of the fingers during the transfer and fell on the table between the bins: a cube (seed 2 scene 10) and a prism (seed 3 scene 8). The cell saw the jaws close past the object width (`grasp_slipped`), recovered, kept the place point as taken, and emptied the rest of the bin. It reported the bin as empty, which it was; it has no means to see an object on the table. 2 slips in 297 attempts with this code, 3 in the 579 attempts of all the full runs of this entry after the first development run.
+- The 5 deposited objects not resting upright are all prisms (5 of 96 deposited prisms): the turn between the pads measured in D-015.
+
+### How the evaluation went (runs before the final code, all reported)
+
+The thresholds were not changed at any point. The code was, three times, after a run failed; each fix is a fault of the loop, not a tuning of the grasp or perception parameters.
+
+| Run | Commit | Result | What it showed |
+|---|---|---|---|
+| `phase4_bin_picking_dev_20261111T171027Z_s1000` | `7d37b14` + uncommitted | 12/29 attempts, 27/30 objects | Obstacles left in `move_group` by an earlier manual run blocked 4 of the 6 place points; the descent was refused and the recovery dropped the object. Fix: the world is emptied at every new scene; with no feasible place point the object is put back. |
+| `phase4_bin_picking_dev_20261111T172211Z_s1000` | `6418c47` + uncommitted | 29/29, 29/30 | Passes; code committed as `4fbd04e`, `8ffad06`. |
+| `phase4_bin_picking_eval_20261111T173304Z_s1` | `8ffad06` | **failed**: 50/52 attempts, 52/100 objects, 40 states in collision | First run on the evaluation seed. 49/50 on the first ten scenes; then a cube slipped (detected), the next prism was set down on it, its release stalled and the recovery opened the fingers fully into the bin wall. MoveIt could not plan from that state and the remaining 12 scenes ended as `no_view`. Fix (`429e974`): a lost object keeps its place point, the recovery opens only as far as the cycle. |
+| `phase4_bin_picking_eval_20261111T175731Z_s1` | `429e974` | passes: 99/99, 99/100 | Same seed again, so no longer a first look at these scenes; a confirmation set on seed 2 was added for that reason. |
+| `phase4_bin_picking_confirm_20261111T183107Z_s2` | `429e974` | **failed**: 70/73 attempts, 73/100 objects, 21 states in collision | First look at seed 2. Three times the fingers, opening after the release, entered the 15 mm margin of a placed neighbour; no retreat could be planned and the arm stayed in the bin for the scenes that followed (10 ended as `no_view`). Fix (`17df986`): the retreat with open fingers is checked before a place point is chosen, the loop can leave straight up after dropping its object beliefs, the margin is 8 mm. A second confirmation set on seed 3 was added. |
+| dev, seed 2, seed 1, seed 3 in this order | `17df986` | all pass | The table above. Seed 3 is the only set the final code met for the first time: 97/98 attempts, 97/100 objects. |
+
+- Comparison with E-003 part C (one object in the middle of the bin, 28/30, median cycle 18.4 s): same cycle time with five objects anywhere in the bin; the selection of a grasp among about 12 candidates costs 0.04 s (median), the view 0.8 s including the wait at ready.
+- Limits: objects in their catalog orientation and not touching (the user's scope for phase 4); top-down grasps only, so an object within about 45 mm of a wall on the side the fingers close from is left in the bin; the output bin and the table are not observed, so the cell does not know how a deposited object lies nor where a slipped one went; friction grasps slipped in 3 of 579 attempts and prisms turn between the pads (D-015); the depth error model is per-pixel noise, not simulated stereo (D-011). The put-back and the rule that a failed grasp is not repeated ran once, in a two-minute check on one scene of seed 2 while the second fault was being fixed (the prism was set down where it had been picked and the scene ended as `no_feasible_grasp`); in the runs with the final code no attempt failed on an object still in the input bin, so they did not run there. Evaluation seed 1 was run three times, the last two after fixes prompted by other runs; seed 3 is the cleanest evidence.
+- Conclusion: phase 4 measurable test passes on the evaluation set and on two confirmation sets.

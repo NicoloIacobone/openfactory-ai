@@ -1,7 +1,13 @@
-"""Gazebo cell: world, fixtures (table, bins), UR5e with gz_ros2_control, /clock bridge, controllers."""
+"""Gazebo cell: world, fixtures (table, bins, RGB-D camera), UR5e with gz_ros2_control, bridge,
+controllers.
+
+With camera:=true (default) Gazebo renders the camera with Ogre 1, which needs the VM display
+even when headless:=true (D-005): launch from a desktop terminal, or set DISPLAY and XAUTHORITY.
+"""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
@@ -53,7 +59,7 @@ def generate_launch_description():
     robot_only = _xacro(
         'openfactory_cell.urdf.xacro',
         include_fixtures='false', simulation_controllers=controllers_file)
-    fixtures = _xacro('fixtures.urdf.xacro')
+    fixtures = _xacro('fixtures.urdf.xacro', camera_sensor=LaunchConfiguration('camera'))
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -68,13 +74,26 @@ def generate_launch_description():
         }.items(),
     )
 
-    clock_bridge = Node(
+    bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         parameters=[{
             'config_file': PathJoinSubstitution(
                 [FindPackageShare('openfactory_simulation'), 'config', 'bridge.yaml']),
         }],
+        output='screen',
+    )
+
+    # D-011: ideal Gazebo depth -> depth with the camera's error model
+    depth_sensor_model = Node(
+        package='openfactory_simulation',
+        executable='depth_sensor_model',
+        parameters=[{
+            'noise': ParameterValue(LaunchConfiguration('depth_noise'), value_type=bool),
+            'seed': ParameterValue(LaunchConfiguration('seed'), value_type=int),
+            'use_sim_time': True,
+        }],
+        condition=IfCondition(LaunchConfiguration('camera')),
         output='screen',
     )
 
@@ -108,8 +127,17 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'headless', default_value='true',
             description='Run the Gazebo server only (no GUI).'),
+        DeclareLaunchArgument(
+            'camera', default_value='true',
+            description='Simulate the RGB-D camera sensor (needs a display); false: body only.'),
+        DeclareLaunchArgument(
+            'depth_noise', default_value='true',
+            description='Apply the depth error model; false: ideal depth, range limits only.'),
+        DeclareLaunchArgument(
+            'seed', default_value='1', description='Seed of the depth noise.'),
         gazebo,
-        clock_bridge,
+        bridge,
+        depth_sensor_model,
         robot_state_publisher,
         _spawn(FIXTURES_NAME, fixtures),
         _spawn(ROBOT_NAME, robot_only),

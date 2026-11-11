@@ -59,6 +59,7 @@ class BinPicking:
         self.client = PerceptionClient(node)
         self.state = task.TaskState()
         self.view = None                         # latest view of the input bin, see _look
+        self.escapes = 0                         # times the arm had to leave straight up
 
     def wait_ready(self):
         self.runner.wait_ready()
@@ -76,9 +77,18 @@ class BinPicking:
         'stamp', 'perception_s'} or None (the arm could not get there, or no view came)."""
         cfg = self.cfg['perception']
         start = time.monotonic()
+        escaped = False
         try:
             if not self.runner.go_ready():
-                return None
+                # The arm cannot plan its way to ready: it is inside a bin, or it stands
+                # within the safety margin of an object the cell believes is there. Those
+                # objects are beliefs, the fixtures are not: drop the objects (the next step
+                # puts them back from the view and from memory), leave straight up.
+                escaped = True
+                self.escapes += 1
+                self.moveit.clear_objects()
+                if not self.runner.escape():
+                    return None
             self.moveit.spin_for(cfg['settle_s'])
             fresh = self.client.wait_fresh(self.node.get_clock().now(), cfg['timeout_s'])
             if fresh is None:
@@ -88,7 +98,7 @@ class BinPicking:
         except ManipulationError:
             return None
         return {'objects': objects, 'hypotheses': hypotheses, 'stamp': stamp,
-                'perception_s': time.monotonic() - start}
+                'perception_s': time.monotonic() - start, 'escaped': escaped}
 
     def _spec(self, obj):
         return self.catalog['objects'].get(obj.class_id) or task.unknown_spec(obj.size)
@@ -183,7 +193,8 @@ class BinPicking:
             'manipulation': manipulation,
             'verification': {
                 'view_stamp': None if self.view is None else self.view['stamp'],
-                'object_removed': removed},
+                'object_removed': removed,
+                'escaped': None if self.view is None else self.view['escaped']},
             'success': success,
             'failure_reason': reason,
             'perception_s': view['perception_s'],

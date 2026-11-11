@@ -152,10 +152,9 @@ def scene_result(objects, final, end_reason, attempts):
 
 def recovered(record):
     """True if, after a failure it detected, the cell was back in a useful state on its own:
-    arm at ready (recovery sequence fine, or not needed) with a new view of the bin."""
-    recovery = record['execution_result']['recovered']
-    return ((recovery is None or bool(recovery.get('ok')))
-            and record['verification']['view_stamp'] is not None)
+    arm at ready with a new view of the bin, whichever way it got there (the recovery of the
+    cycle, or the straight escape of the loop)."""
+    return record['verification']['view_stamp'] is not None
 
 
 def _rate(successes, n):
@@ -205,6 +204,7 @@ def summarize(attempts, scenes, thresholds):
         'planning_failure': _rate(planning, evaluated),
         'objects_disturbed': sum(len(r['evaluation']['disturbed']) for r in attempts),
         'objects_lost': sum(len(s['lost']) for s in scenes),
+        'escapes': sum(bool(r['verification'].get('escaped')) for r in attempts),
     })
     summary['checks'] = checks(summary, thresholds)
     summary['passed'] = all(summary['checks'].values())

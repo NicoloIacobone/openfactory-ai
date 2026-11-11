@@ -41,7 +41,10 @@ place:
   # obstacles, grown by `obstacle_padding` because an object shifts when the fingers let go.
   slots: [[0.10, 0.055], [0.10, -0.055], [0.0, 0.055], [0.0, -0.055], [-0.10, 0.055],
           [-0.10, -0.055]]
-  obstacle_padding: 0.015            # m, on every side
+  obstacle_padding: 0.008            # m, on every side. Measured shift of a released object:
+                                     # median 4.5 mm (E-004). More than 10 mm would not leave
+                                     # room for the fingers between two place points in the
+                                     # worst orientation (test_config.py)
 
 scene:
   object_clearance: 0.002            # m, planning-scene object raised above the floor it rests on

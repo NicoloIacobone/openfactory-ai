@@ -1,5 +1,6 @@
 """Consistency of config/pick_place.yaml with the cell layout, the gripper and the catalog."""
 
+import math
 from pathlib import Path
 
 import yaml
@@ -27,14 +28,22 @@ def test_the_fingers_fit_between_every_place_point_and_the_walls():
 
 
 def test_place_points_are_enough_and_apart():
+    """Worst case between two place points: the fingers, open to release the widest object,
+    point at the neighbour, and the neighbour, grown by its padding, points a corner back.
+    They must not meet, or no finger direction is sure to fit and placing gets blocked."""
     slots = CONFIG['place']['slots']
     assert len(slots) == len({tuple(slot) for slot in slots}) >= 5
-    widest = max(max(bounding_box(spec)[:2]) for spec in CATALOG['objects'].values())
-    # two placed objects, each grown by the padding on its side, do not overlap
-    apart = widest + 2 * CONFIG['place']['obstacle_padding']
+    padding = CONFIG['place']['obstacle_padding']
+    finger = GRIPPER['finger']['size']
+    reach = corner = 0.0
+    for spec in CATALOG['objects'].values():
+        x, y, _ = bounding_box(spec)
+        along = max(x, y) / 2 + CONFIG['grasp']['preclose_margin'] + finger[1]
+        reach = max(reach, math.hypot(along, finger[0] / 2))
+        corner = max(corner, math.hypot(x / 2 + padding, y / 2 + padding))
     for i, (ax, ay) in enumerate(slots):
         for bx, by in slots[i + 1:]:
-            assert max(abs(ax - bx), abs(ay - by)) >= apart, ((ax, ay), (bx, by))
+            assert math.hypot(ax - bx, ay - by) >= reach + corner, ((ax, ay), (bx, by))
 
 
 def test_ready_is_a_full_arm_configuration():

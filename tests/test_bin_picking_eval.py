@@ -134,7 +134,7 @@ def _scene(n, done, end='bin_empty', attempts=None):
 def test_summarize_metrics_and_thresholds():
     attempts = ([_attempt(True) for _ in range(9)]
                 + [_attempt(False, 'grasp_failed', recovered={'ok': True}),
-                   _attempt(False, 'planning_failed', recovered={'ok': False}),
+                   _attempt(False, 'planning_failed', recovered={'ok': False}, view=None),
                    _attempt(False, 'place_failed', cell_ok=True,
                             detection='undetected_failure')])
     attempts[0]['candidates_rejected'] = {'wall_collision': 3, 'ik_failed': 1}

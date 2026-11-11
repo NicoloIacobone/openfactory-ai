@@ -104,6 +104,19 @@ class PickPlace:
         except ManipulationError:
             return False
 
+    def escape(self):
+        """Straight up from wherever the tool is, then to ready: the way out when the tool is
+        inside a bin, where a free plan to ready grazes the walls and is refused. False if the
+        arm does not reach ready."""
+        try:
+            up = core.raised(self.moveit.frame_pose(c.TOOL_LINK), self.cfg['grasp']['lift_height'])
+            code, trajectory, _, _ = self.moveit.plan_cartesian(up)
+            if code == core.MOVEIT_SUCCESS:
+                self.moveit.execute(trajectory)
+        except ManipulationError:
+            return False
+        return self.go_ready()
+
     def run(self, object_type, object_id, x, y, yaw, source='known_pose'):
         """Pick `object_type` resting at (x, y, yaw) in input_bin, place it in output_bin.
 
@@ -188,32 +201,45 @@ class PickPlace:
         }
 
     def _choose_place(self, plans):
-        """The first place option whose transfer and descent lines are feasible, planned from
-        the lifted state: (plan, transfer, descent), each (code, trajectory, planning s,
-        fraction). With a single option (the known-pose cycle) it is returned even if
-        infeasible and the stage that executes it records the failure. With several, None is
-        returned when none is feasible: nothing has moved yet, so the object can go back."""
+        """The first place option that is feasible from the lifted state: (plan, transfer,
+        descent), each (code, trajectory, planning s, fraction).
+
+        With a single option (the known-pose cycle) it is returned even if infeasible and the
+        stage that executes it records the failure. With several, an option needs the transfer
+        line, the descent line and the retreat line with the fingers open as after the release
+        (they are closed on the object during the descent, and open they may reach what stands
+        next to the place point). None is returned when no option is feasible: nothing has
+        moved yet, so the object can go back.
+        """
         skipped_s, rejected = 0.0, []
         for index, plan in enumerate(plans):
+            stage = 'transfer'
             code, trajectory, fraction, planning_s = self.moveit.plan_cartesian(
                 self._tool0(plan.pre_place))
-            transfer, descent = (code, trajectory, planning_s, fraction), None
+            transfer, descent, spent = (code, trajectory, planning_s, fraction), None, planning_s
             if code == core.MOVEIT_SUCCESS:
-                after = self.moveit.robot_state(self.moveit.end_joints(trajectory))
+                stage = 'descend'
+                above = self.moveit.robot_state(self.moveit.end_joints(trajectory))
                 code, trajectory, fraction, planning_s = self.moveit.plan_cartesian(
-                    self._tool0(plan.place), start_state=after)
-                descent = (code, trajectory, planning_s, fraction)
+                    self._tool0(plan.place), start_state=above)
+                descent, spent = (code, trajectory, planning_s, fraction), spent + planning_s
+            if code == core.MOVEIT_SUCCESS and len(plans) > 1:
+                stage = 'retreat'
+                opened = self.moveit.robot_state(self.moveit.end_joints(trajectory),
+                                                 plan.release_position)
+                code, _, fraction, planning_s = self.moveit.plan_cartesian(
+                    self._tool0(plan.retreat), start_state=opened)
+                spent += planning_s
             if code == core.MOVEIT_SUCCESS or len(plans) == 1:
                 self.place_index = index
                 self.target_place = plan.place_object_pose
                 if len(plans) > 1:
-                    self._record('place_select', planning_s=skipped_s, chosen=index,
-                                 rejected=rejected)
+                    self._record('place_select', planning_s=skipped_s + spent - transfer[2]
+                                 - descent[2], chosen=index, rejected=rejected)
                 return plan, transfer, descent
-            skipped_s += transfer[2] + (descent[2] if descent else 0.0)
-            rejected.append({'index': index, 'stage': 'descend' if descent else 'transfer',
-                             'moveit_error_code': code,
-                             'cartesian_fraction': (descent or transfer)[3]})
+            skipped_s += spent
+            rejected.append({'index': index, 'stage': stage, 'moveit_error_code': code,
+                             'cartesian_fraction': fraction})
         self.stages.append({'stage': 'place_select', 'ok': True, 'reason': None,
                             'planning_s': skipped_s, 'execution_s': 0.0, 'chosen': None,
                             'rejected': rejected})

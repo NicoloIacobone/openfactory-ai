@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'pick_place_once = openfactory_manipulation.pick_place_once:main',
             'pick_perceived_once = openfactory_manipulation.pick_perceived_once:main',
+            'bin_picking = openfactory_manipulation.bin_picking:main',
         ],
     },
 )

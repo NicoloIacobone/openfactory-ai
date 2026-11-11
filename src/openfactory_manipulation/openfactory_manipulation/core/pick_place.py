@@ -15,7 +15,7 @@ from .objects import bounding_box
 # Failure reasons logged per attempt (docs/agent-guides/manipulation.md)
 FAILURE_REASONS = (
     'scene_failed', 'ik_failed', 'planning_failed', 'execution_failed', 'gripper_failed',
-    'grasp_failed', 'grasp_slipped', 'place_failed', 'timeout',
+    'grasp_failed', 'grasp_slipped', 'place_blocked', 'place_failed', 'timeout',
 )
 
 MOVEIT_SUCCESS = 1
@@ -110,6 +110,10 @@ class PickPlacePlan:
     open_position: float
     preclose_position: float
     close_position: float
+    # finger position during the approach and after the release: fully open in the known-pose
+    # cycle (D-010), pre-shaped to the object width plus the margin among other objects (D-016)
+    approach_position: float
+    release_position: float
 
     @property
     def held_opening(self):
@@ -129,23 +133,36 @@ def plan_pick_place(object_pose, place_bin_pose, place_xy, spec, gripper, params
     The object keeps its world yaw (same TCP orientation for grasp and place) and is released
     `release_clearance` above the destination floor.
     """
-    width = bounding_box(spec)[0]
-    height = bounding_box(spec)[2]
+    width, _, height = bounding_box(spec)
+    tcp_quat = top_down_quat(yaw_of(object_pose[1]))
+    grasp = raised((object_pose[0], tcp_quat), grasp_offset(spec, gripper, params))
+    return plan_grasp(grasp, object_pose, width, height, place_bin_pose, place_xy, gripper,
+                      params)
+
+
+def plan_grasp(grasp, object_pose, width, height, place_bin_pose, place_xy, gripper, params,
+               preshape=False):
+    """Waypoints for a given top-down grasp and a place at `place_xy` in a bin.
+
+    `grasp`: gripper_tcp pose (world) with the fingers closing on `width`; `object_pose`: world
+    pose of the object, `height` its size along z. The TCP keeps its orientation and its height
+    on the object from grasp to place, so the object keeps its world yaw and is released
+    `release_clearance` above the destination floor. With `preshape` the fingers approach and
+    release at the pre-close opening instead of fully open, so that they pass between
+    neighbouring objects.
+    """
     stroke = gripper['finger']['stroke']
     half = width / 2
     if half + params['preclose_margin'] > stroke:
         raise ValueError(f'object width {width} m does not fit the gripper opening')
 
-    yaw = yaw_of(object_pose[1])
-    tcp_quat = top_down_quat(yaw)
-    offset = grasp_offset(spec, gripper, params)
-
-    grasp = raised((object_pose[0], tcp_quat), offset)
+    offset = grasp[0][2] - object_pose[0][2]
     place_centre, _ = compose(
         place_bin_pose,
         ((place_xy[0], place_xy[1], height / 2 + params['release_clearance']), _IDENTITY))
-    place_object = (place_centre, quat_from_rpy(0.0, 0.0, yaw))
-    place = raised((place_centre, tcp_quat), offset)
+    place_object = (place_centre, quat_from_rpy(0.0, 0.0, yaw_of(object_pose[1])))
+    place = raised((place_centre, grasp[1]), offset)
+    preclose = half + params['preclose_margin']
 
     return PickPlacePlan(
         object_pose=object_pose,
@@ -158,8 +175,10 @@ def plan_pick_place(object_pose, place_bin_pose, place_xy, spec, gripper, params
         retreat=raised(place, params['approach_distance']),
         grasp_width=width,
         open_position=stroke,
-        preclose_position=half + params['preclose_margin'],
+        preclose_position=preclose,
         close_position=max(0.0, half - params['squeeze_depth']),
+        approach_position=preclose if preshape else stroke,
+        release_position=preclose if preshape else stroke,
     )
 
 

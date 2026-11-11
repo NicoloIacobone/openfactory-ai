@@ -12,10 +12,11 @@ from geometry_msgs.msg import Point, Pose, Quaternion
 from moveit_msgs.action import ExecuteTrajectory, MoveGroup
 from moveit_msgs.msg import (
     AttachedCollisionObject, CollisionObject, Constraints, JointConstraint,
-    OrientationConstraint, PlanningScene, PositionConstraint,
+    OrientationConstraint, PlanningScene, PositionConstraint, RobotState,
 )
-from moveit_msgs.srv import ApplyPlanningScene, GetCartesianPath
+from moveit_msgs.srv import ApplyPlanningScene, GetCartesianPath, GetPositionIK
 from rclpy.action import ActionClient
+from rclpy.duration import Duration
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 from tf2_ros import Buffer, TransformListener
@@ -65,11 +66,13 @@ class MoveItInterface:
         self.gripper_client = ActionClient(node, GripperCommand, c.GRIPPER_ACTION)
         self.cartesian_client = node.create_client(GetCartesianPath, c.CARTESIAN_SERVICE)
         self.scene_client = node.create_client(ApplyPlanningScene, c.PLANNING_SCENE_SERVICE)
+        self.ik_client = node.create_client(GetPositionIK, c.IK_SERVICE)
         self.names = {
             self.move_client: c.MOVE_ACTION, self.execute_client: c.EXECUTE_ACTION,
             self.gripper_client: c.GRIPPER_ACTION, self.cartesian_client: c.CARTESIAN_SERVICE,
-            self.scene_client: c.PLANNING_SCENE_SERVICE,
+            self.scene_client: c.PLANNING_SCENE_SERVICE, self.ik_client: c.IK_SERVICE,
         }
+        self.world_ids = set()        # collision objects put in the world by set_objects
 
     # -- plumbing -------------------------------------------------------------------------
 
@@ -100,7 +103,7 @@ class MoveItInterface:
         for client in (self.move_client, self.execute_client, self.gripper_client):
             if not client.wait_for_server(timeout_sec=timeout):
                 raise ManipulationError(f'{self.names[client]} not available: is the cell up?')
-        for client in (self.cartesian_client, self.scene_client):
+        for client in (self.cartesian_client, self.scene_client, self.ik_client):
             if not client.wait_for_service(timeout_sec=timeout):
                 raise ManipulationError(f'{self.names[client]} not available')
         end = time.monotonic() + timeout
@@ -186,8 +189,51 @@ class MoveItInterface:
         result = self._action(self.move_client, self._motion_request(goal))
         return result.error_code.val, result.planned_trajectory, time.monotonic() - start
 
-    def plan_cartesian(self, tool0_pose):
-        """Straight tool0 line from the current state: (error code, trajectory, fraction, s)."""
+    @staticmethod
+    def robot_state(arm_joints, finger_position=None):
+        """The current robot state with the arm at `arm_joints` and, if given, both fingers at
+        `finger_position`: for requests about a state the robot is not in."""
+        names = list(c.ARM_JOINTS)
+        positions = [float(v) for v in arm_joints]
+        if finger_position is not None:
+            names += list(c.FINGER_JOINTS)
+            positions += [float(finger_position)] * len(c.FINGER_JOINTS)
+        state = RobotState(is_diff=True)
+        state.joint_state.name = names
+        state.joint_state.position = positions
+        return state
+
+    def compute_ik(self, tool0_pose, seed_joints, finger_position, timeout_s):
+        """Collision-free arm configuration for a tool0 pose in the world frame, searched from
+        `seed_joints` with the fingers at `finger_position`: (error code, joints or None)."""
+        request = GetPositionIK.Request()
+        ik = request.ik_request
+        ik.group_name = c.ARM_GROUP
+        ik.robot_state = self.robot_state(seed_joints, finger_position)
+        ik.avoid_collisions = True
+        ik.ik_link_name = c.TOOL_LINK
+        ik.pose_stamped.header.frame_id = c.WORLD_FRAME
+        ik.pose_stamped.pose = to_pose(tool0_pose)
+        ik.timeout = Duration(seconds=timeout_s).to_msg()
+        response = self._wait(self.ik_client.call_async(request),
+                              self.cfg['timeouts']['server_s'])
+        code = response.error_code.val
+        if code != MOVEIT_SUCCESS:
+            return code, None
+        solution = dict(zip(response.solution.joint_state.name,
+                            response.solution.joint_state.position))
+        return code, [solution[name] for name in c.ARM_JOINTS]
+
+    @staticmethod
+    def end_joints(trajectory):
+        """Arm configuration at the end of a planned trajectory."""
+        joint_trajectory = trajectory.joint_trajectory
+        last = dict(zip(joint_trajectory.joint_names, joint_trajectory.points[-1].positions))
+        return [last[name] for name in c.ARM_JOINTS]
+
+    def plan_cartesian(self, tool0_pose, start_state=None):
+        """Straight tool0 line from the current state, or from `start_state` (robot_state):
+        (error code, trajectory, fraction, s)."""
         cart = self.cfg['cartesian']
         request = GetCartesianPath.Request(
             group_name=c.ARM_GROUP, link_name=c.TOOL_LINK, waypoints=[to_pose(tool0_pose)],
@@ -195,7 +241,10 @@ class MoveItInterface:
             max_velocity_scaling_factor=cart['velocity_scaling'],
             max_acceleration_scaling_factor=cart['acceleration_scaling'])
         request.header.frame_id = c.WORLD_FRAME
-        request.start_state.is_diff = True
+        if start_state is None:
+            request.start_state.is_diff = True
+        else:
+            request.start_state = start_state
         start = time.monotonic()
         response = self._wait(self.cartesian_client.call_async(request),
                               self.cfg['timeouts']['action_s'])
@@ -236,6 +285,43 @@ class MoveItInterface:
         scene.world.collision_objects = [collision_object(object_id, spec, pose)]
         return self._apply(scene)
 
+    def set_objects(self, objects):
+        """Make the world hold exactly `objects` among those this method manages.
+
+        `objects`: {id: (spec, world pose)}, spec as in the catalog (`shape` and its sizes).
+        Objects added before and missing now are removed; add_object and remove_object keep
+        working on single ids. Returns True if every new object was accepted.
+        """
+        for object_id in self.world_ids - set(objects):
+            remove = PlanningScene()
+            remove.world.collision_objects = [CollisionObject(id=object_id,
+                                                              operation=CollisionObject.REMOVE)]
+            self._apply(remove)       # fails only if the object is already gone
+        self.world_ids = set(objects)
+        if not objects:
+            return True
+        scene = PlanningScene()
+        scene.world.collision_objects = [collision_object(object_id, spec, pose)
+                                         for object_id, (spec, pose) in objects.items()]
+        return self._apply(scene)
+
+    def clear_objects(self):
+        """Empty the planning-scene world and the gripper, whoever filled them.
+
+        The world of this cell holds objects only (fixtures are links of the robot model,
+        D-008), and move_group keeps them when the process that added them ends: a new scene
+        must not inherit the obstacles of an earlier run. An empty id means every object.
+        """
+        detach = PlanningScene()
+        detach.robot_state.attached_collision_objects = [
+            AttachedCollisionObject(object=CollisionObject(operation=CollisionObject.REMOVE))]
+        remove = PlanningScene()
+        remove.world.collision_objects = [CollisionObject(operation=CollisionObject.REMOVE)]
+        detached = self._apply(detach)
+        removed = self._apply(remove)
+        self.world_ids = set()
+        return detached and removed
+
     def attach_object(self, object_id):
         """Move a world object onto the gripper; the gripper links may touch it.
 
@@ -266,4 +352,5 @@ class MoveItInterface:
                                                           operation=CollisionObject.REMOVE)]
         detached = self._apply(detach)
         removed = self._apply(remove)
+        self.world_ids.discard(object_id)
         return detached or removed

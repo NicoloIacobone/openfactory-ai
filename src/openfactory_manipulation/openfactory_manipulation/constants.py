@@ -2,6 +2,7 @@
 
 WORLD_FRAME = 'world'
 INPUT_BIN_FRAME = 'input_bin'
+INPUT_BIN = 'input'                                     # key of the bin in cell.yaml
 OUTPUT_BIN_FRAME = 'output_bin'
 TCP_LINK = 'gripper_tcp'
 TOOL_LINK = 'tool0'
@@ -20,6 +21,7 @@ MOVE_ACTION = '/move_action'
 EXECUTE_ACTION = '/execute_trajectory'
 CARTESIAN_SERVICE = '/compute_cartesian_path'
 PLANNING_SCENE_SERVICE = '/apply_planning_scene'
+IK_SERVICE = '/compute_ik'
 GRIPPER_ACTION = '/gripper_controller/gripper_cmd'
 OBJECTS_TOPIC = '/perception/objects'
 

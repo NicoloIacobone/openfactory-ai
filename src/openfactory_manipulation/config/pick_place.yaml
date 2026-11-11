@@ -34,16 +34,42 @@ grasp:
   settle_s: 0.3                      # s, wait after a gripper action before reading the fingers
 
 place:
-  xy: [0.0, 0.0]                     # m, object centre in the output_bin frame
+  xy: [0.0, 0.0]                     # m, object centre in the output_bin frame (known-pose cycle)
   release_clearance: 0.005           # m, object bottom above the destination floor at release
+  # Bin picking (phase 4, D-017): place points in output_bin, used in this order, one object
+  # each. The output bin is not observed: the cell keeps what it placed as planning-scene
+  # obstacles, grown by `obstacle_padding` because an object shifts when the fingers let go.
+  slots: [[0.10, 0.055], [0.10, -0.055], [0.0, 0.055], [0.0, -0.055], [-0.10, 0.055],
+          [-0.10, -0.055]]
+  obstacle_padding: 0.015            # m, on every side
 
 scene:
   object_clearance: 0.002            # m, planning-scene object raised above the floor it rests on
+
+selection:                           # grasp candidates and hard filters (phase 4, D-016)
+  cylinder_directions: 8             # finger directions tried on a standing cylinder, over 180 deg
+  finger_clearance: 0.003            # m, fingers to the bin walls and to the other objects
+  max_feasible: 4                    # MoveIt-checked survivors to rank; the rest is not evaluated
+  ik_timeout_s: 0.05                 # s, collision-free IK search for one pre-grasp
+
+ranking:                             # baseline score of a feasible candidate (higher is better)
+  confidence: 1.0                    # weight of the perception score of the object, in (0, 1]
+  clearance: 0.5                     # weight of the gripper's smallest gap, normalised by its cap
+  motion: 0.3                        # weight (subtracted) of the move from ready to the pre-grasp
+  clearance_cap: 0.03                # m, gaps above this count the same
+  motion_cap: 3.0                    # rad, largest joint displacement that counts
 
 perception:                          # camera-driven picks (phase 3)
   min_score: 0.5                     # hypotheses below this confidence are never picked
   settle_s: 0.5                      # s at ready before asking for a view
   timeout_s: 10.0                    # s waiting for a view newer than that
+
+task:                                # bin-picking loop (phase 4, D-017)
+  attempts_per_object: 2.0           # attempt budget of a scene, per object in its first view
+  max_consecutive_failures: 3        # the cell gives up after this many failed attempts in a row
+  max_attempts_per_object: 2         # failed grasps on one object before it is left alone
+  match_radius: 0.02                 # m: same object between two views, or still where it was
+  match_angle: 0.26                  # rad: same finger direction (a failed grasp is not repeated)
 
 timeouts:
   server_s: 10.0                     # waiting for MoveIt / controllers

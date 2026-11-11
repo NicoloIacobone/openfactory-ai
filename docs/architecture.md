@@ -24,12 +24,19 @@ Perception never commands joints. Simulator ground truth is consumed only by eva
 | `grasp_selector` | `openfactory_manipulation` | object poses/geometry, point cloud, robot state | ranked feasible grasp candidates |
 | `task_planner` | `openfactory_manipulation` | best grasp, destination bin, task state | MoveIt requests, next action |
 | `robot_executor` | `openfactory_manipulation` | trajectories, gripper commands | execution result, state |
+| `scene_manager` | `openfactory_manipulation` | prior state, perception update, action result | updated scene/task state, recovery request |
+| `factory_manager` | later | production goals, station states | task assignments (not in the MVP) |
 
 Phase 2 implements `task_planner` and `robot_executor` as a library (`openfactory_manipulation.pick_place.PickPlace`, pure logic in `core/`) driven by the trial harness or `ros2 run openfactory_manipulation pick_place_once`; the object pose is the known-pose input of D-009, not a perception output.
 
 Phase 3 implements `scene_perception` as the node `openfactory_perception/scene_perception` (pure logic in `core/`: depth to points, bin crop and floor removal, top-view segmentation, model-based recognition of the catalog primitives, D-012). `grasp_selector` is not a component yet: `openfactory_manipulation.camera_pick` takes the most confident hypothesis and passes its type and pose to the same `PickPlace` cycle (`ros2 run openfactory_manipulation pick_perceived_once`, D-013); grasp candidates and feasibility ranking are phase 4.
-| `scene_manager` | `openfactory_manipulation` | prior state, perception update, action result | updated scene/task state, recovery request |
-| `factory_manager` | later | production goals, station states | task assignments (not in the MVP) |
+
+Phase 4 implements the other two as libraries of `openfactory_manipulation`, run by `ros2 run openfactory_manipulation bin_picking` or by the benchmark harness:
+
+- `grasp_selector` is `grasp_selector.GraspSelector` (pure logic in `core/grasps.py`, D-016): top-down candidates per hypothesis, hard filters (gripper width, fingers against the bin walls and the other objects, then MoveIt: collision-free IK above the grasp, approach line, lift line), and a baseline score on the survivors only. Every rejection is counted by reason.
+- `scene_manager` is `bin_picking.BinPicking` (pure logic in `core/task.py`, D-017). One step: view of the input bin with the arm at ready → every object of the view into the planning scene → grasp selection → `PickPlace.run_grasp` → next view, which verifies the pick (the object must be gone from the input bin) and feeds the next step. It keeps the task state of a scene: failed grasps that are not repeated, attempt budgets, the objects it placed and where. The loop ends with a reason (`bin_empty`, `no_feasible_grasp`, `only_unknown`, `output_full`, `attempt_budget`, `failure_budget`, `no_view`).
+
+The output bin is not observed by the camera: the cell places on a fixed grid of points in `output_bin` and remembers what it put where (planning-scene obstacles), so the object's final pose there is known only to the evaluation harness.
 
 ## Interfaces
 
@@ -43,9 +50,10 @@ To be defined in the phase that introduces each component. Standard types first 
 | `/joint_trajectory_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | `move_group` → `joint_trajectory_controller` | only path for arm motion (phase 1) |
 | `/move_action` | `moveit_msgs/action/MoveGroup` | clients → `move_group` | plan and execute (phase 1) |
 | `/move_action` (`plan_only`) | `moveit_msgs/action/MoveGroup` | `openfactory_manipulation` → `move_group` | free-space plans to joint or `tool0` pose goals; executed separately (phase 2) |
-| `/compute_cartesian_path` | `moveit_msgs/srv/GetCartesianPath` | `openfactory_manipulation` → `move_group` | straight `tool0` lines: approach, lift, transfer, descend, retreat (phase 2) |
+| `/compute_cartesian_path` | `moveit_msgs/srv/GetCartesianPath` | `openfactory_manipulation` → `move_group` | straight `tool0` lines: approach, lift, transfer, descend, retreat (phase 2); from a given start state when `grasp_selector` checks a candidate's approach and lift, and when a place point is checked before the transfer (phase 4) |
 | `/execute_trajectory` | `moveit_msgs/action/ExecuteTrajectory` | `openfactory_manipulation` → `move_group` | executes planned trajectories through `joint_trajectory_controller` (phase 2) |
-| `/apply_planning_scene` | `moveit_msgs/srv/ApplyPlanningScene` | `openfactory_manipulation` → `move_group` | object added at its known pose, attached to `gripper_tcp` on grasp, removed on release (phase 2) |
+| `/apply_planning_scene` | `moveit_msgs/srv/ApplyPlanningScene` | `openfactory_manipulation` → `move_group` | object added at its known pose, attached to `gripper_tcp` on grasp, removed on release (phase 2). Bin picking: every object of the view as `in_<k>` (catalog shape, or a box for `unknown` clusters) and every object the cell placed as `out_<slot>` (phase 4) |
+| `/compute_ik` | `moveit_msgs/srv/GetPositionIK` | `openfactory_manipulation` (`grasp_selector`) → `move_group` | collision-free arm configuration above a grasp candidate, with the fingers at the approach opening; a hard filter and the goal of the move to the pre-grasp (phase 4) |
 | `/gripper_controller/gripper_cmd` | `control_msgs/action/GripperCommand` | manipulation → `gripper_controller` | `position` = left finger joint = half the jaw opening (m); stalling on an object succeeds (phase 2) |
 | `/camera/camera_info` | `sensor_msgs/CameraInfo` | Gazebo (`ros_gz_bridge`) → `depth_sensor_model`, `scene_perception` | intrinsics of colour and depth (one optical centre), frame `camera_optical_frame` (phase 3) |
 | `/camera/color/image_raw` | `sensor_msgs/Image` `rgb8` | Gazebo (`ros_gz_bridge`, lazy) → `scene_perception` debug image | not used for recognition (phase 3) |
@@ -106,4 +114,4 @@ The trial harness talks to Gazebo directly through Gazebo Transport (`scripts/gz
 
 Ground truth is not bridged to ROS (D-009): no ROS node can subscribe to it, so perception and manipulation cannot leak it. If a ROS ground-truth topic is ever needed for debugging, it lives under `/ground_truth/`. The ideal depth image (`/camera/depth/image_ideal`) is simulator data too: only the depth sensor model and the harness's calibration check read it. A pytest in `openfactory_perception` and one in `openfactory_manipulation` fail if a file of the package names ground truth, Gazebo transport, the bridge or (perception) the ideal depth topic.
 
-Scene randomization (`scripts/randomize_scene.py`) is seeded per scene from (seed, scene index); phase 3 scenes hold separate objects resting in their catalog orientation.
+Scene randomization (`scripts/randomize_scene.py`) is seeded per scene from (seed, scene index); scenes hold separate objects resting in their catalog orientation, one to three in phase 3, five close to each other and to the walls in phase 4 (`scripts/config/phase4_bin_picking.yaml`). The benchmark harness (`scripts/benchmark.py`) reads ground truth after every attempt of the cell and judges it in `scripts/bin_picking_eval.py`; the cell's own verdict comes only from its fingers and its camera.

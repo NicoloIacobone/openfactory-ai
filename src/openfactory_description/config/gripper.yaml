@@ -6,7 +6,9 @@ palm:
   mass: 0.3
 
 finger:
-  size: [0.02, 0.01, 0.06]    # x (width), y (thickness), z (length below the palm)
+  size: [0.02, 0.01, 0.11]    # x (width), y (thickness), z (length below the palm). Longer than
+                              # the bin walls are high (0.10 m), so only the fingers enter a bin
+                              # and the palm stays above the rim (D-014)
   mass: 0.05
   stroke: 0.0425              # commanded range [0, stroke] per finger: opening 0 .. 0.085 m
   limit_margin: 0.005         # joint limits are [-margin, stroke + margin]: a Gazebo joint pushed
@@ -19,4 +21,4 @@ finger:
                               # following commands, like a position limit
   friction: 1.5               # Gazebo mu1/mu2 on the finger collisions
 
-tcp_offset: 0.085             # gripper_tcp along tool0 z: between the pads, 15 mm above the fingertips
+tcp_offset: 0.135             # gripper_tcp along tool0 z: between the pads, 15 mm above the fingertips

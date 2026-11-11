@@ -1,8 +1,9 @@
 # Deterministic top-down pick and place (phase 2), object pose known or perceived (phase 3).
 # SI units, radians.
 
-# Arm configuration at the start and end of every cycle: gripper_tcp 0.29 m above the bin floors,
-# between the bins, pointing down (MoveIt IK 2026-11-10).
+# Arm configuration at the start and end of every cycle: between the bins, tool pointing down
+# (MoveIt IK 2026-11-10). With the long fingers of D-014 gripper_tcp is 0.24 m above the bin
+# floors, the fingertips 0.125 m above the rims.
 ready_joints: [-0.3397, -1.8188, 2.0501, -1.8021, -1.5708, -1.9105]
 
 planning:

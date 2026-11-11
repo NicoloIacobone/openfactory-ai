@@ -8,8 +8,8 @@ from openfactory_manipulation.core import selection as sel
 
 GRIPPER = {
     'palm': {'size': [0.06, 0.12, 0.04]},
-    'finger': {'size': [0.02, 0.01, 0.06], 'stroke': 0.0425},
-    'tcp_offset': 0.085,
+    'finger': {'size': [0.02, 0.01, 0.11], 'stroke': 0.0425},
+    'tcp_offset': 0.135,
 }
 PARAMS = {
     'approach_distance': 0.10, 'lift_height': 0.15, 'floor_clearance': 0.005,
@@ -66,7 +66,7 @@ def test_object_pose_in_bin_rests_on_the_floor():
 @pytest.mark.parametrize('spec', [CUBE, CYLINDER, PRISM])
 def test_grasp_at_centre_respects_clearances(spec):
     tip_below, palm_above = pp.finger_geometry(GRIPPER)
-    assert (tip_below, palm_above) == pytest.approx((0.015, 0.045))
+    assert (tip_below, palm_above) == pytest.approx((0.015, 0.095))
     offset = pp.grasp_offset(spec, GRIPPER, PARAMS)
     height = {'box': 0.05, 'cylinder': 0.08, 'triangular_prism': 0.05 * math.sqrt(3) / 2}[
         spec['shape']]

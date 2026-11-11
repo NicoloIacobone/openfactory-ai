@@ -162,6 +162,10 @@ def test_gripper(include_fixtures):
     # the TCP lies between the pads, above the fingertips
     tips = GRIPPER['palm']['size'][2] + finger['size'][2]
     assert GRIPPER['palm']['size'][2] < GRIPPER['tcp_offset'] < tips
+    # the fingers are longer than any bin wall is high: with the fingertips on a bin floor the
+    # palm is still above the rim, so only the fingers ever enter a bin (D-014)
+    rim = max(spec['inner_size'][2] for spec in CELL['bins'].values())
+    assert finger['size'][2] >= rim + 0.005
 
     for name, axis in (('left_finger_joint', [0, 1, 0]), ('right_finger_joint', [0, -1, 0])):
         joint = _joint(root, name)

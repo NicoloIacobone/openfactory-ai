@@ -64,3 +64,76 @@ Summaries of trials and benchmarks. Raw logs stay in `data/` (git-ignored); ever
 - Limits: one known pose per object type; no candidate search (`candidates_total` 1); the collision re-check covers arm and gripper against fixtures, not the held object (removed from the planning scene before the check). Place error is systematic along the finger axis (release pushes the object, and the mimic finger lets it sit off-centre in the jaws); harmless for the bin target, relevant if precise placement is ever needed. The prism is a box in the planning scene.
 - Development runs before this one (not counted): the first harness smoke run failed 2/3 with false `grasp_slipped` from a one-finger hold check; fixed by checking the jaw opening (D-010).
 - Conclusion: phase 2 measurable test passes; this is the known-pose baseline that camera-driven picking will be compared against.
+
+## E-003 — Phase 3 closing test: camera calibration, perception accuracy, camera-driven pick (2026-11-11)
+
+- Question: does the cell locate and recognise objects in the input bin from the RGB-D camera and TF alone, is the camera calibration what the description says, and does a pick driven by that perception work as well as the known-pose baseline (E-002)?
+- Strategies: perception `geometric_height_map` (D-012); pick `camera_top_down` (D-013): the most confident hypothesis replaces the known pose of `known_pose_top_down`, same cycle (D-010).
+- Camera: D415-like depth stream with the depth error model on, seed 1 (D-011). Thresholds were written in the configs before the first live run; perception parameters were not changed after the development seeds.
+- Seeds: tuning set seed 1000 (10 scenes + 2 empty; 6 picks) / evaluation set seed 1. Objects: cube, cylinder, prism, separate, resting in their catalog orientation, random position and yaw.
+- Commit / config: `ae9d454`; `scripts/config/phase3_perception.yaml` (sha256 `b57ff41da49d`), `scripts/config/phase3_camera_pick.yaml` (sha256 `946aa64d8144`), `openfactory_perception/config/perception.yaml`, `openfactory_manipulation/config/pick_place.yaml`. Cell: `ros2 launch openfactory_bringup cell.launch.py headless:=true rviz:=false` from the VM desktop. Logs in `data/trials/` (copied from the VM).
+- Re-run, in the VM with the cell launched: `python3 scripts/phase3_camera_check.py`, `python3 scripts/phase3_perception_test.py`, `python3 scripts/phase3_camera_pick_test.py`.
+
+### Part A — calibration (`phase3_camera_check_20261111T102320Z`): pass
+
+| Check | Measured | Limit |
+|---|---|---|
+| `camera_info` fx, fy against `camera.yaml` (502.30 px) | relative error 0 | 0.5 % |
+| Principal point against the image centre (320, 180) | 0 px | 1 px |
+| Image size, frame of `camera_info` and depth | 640 × 360, `camera_optical_frame` | — |
+| Bin floor (28 743 pixels, ideal depth, through TF) against z = 0 of `input_bin` | offset 0.00002 mm, tilt 0.0002°, RMS 0.00002 mm | 2 mm, 0.5° |
+| Known point: cube top-face centre from ground truth, projected with TF and K, against where the face is seen (3 poses) | 0.00, 0.17, 0.12 px | 2 px |
+| Depth at the known point | below 0.001 mm | 2 mm |
+| Depth noise on the bin floor against the model (5 frames) | 1.450 mm against 1.448 mm (ratio 1.002) | ± 25 % |
+
+Without perception's principal-point correction the known point is seen (−0.50, −0.50) px from its projection at the image centre: Gazebo's pixel (u, v) looks along the ray of (u + 0.5, v + 0.5). The correction is in `perception.yaml` (D-011); the reprojection figures above include it.
+
+### Part B — perception accuracy against ground truth: pass
+
+44 scenes: 14 with one object, 13 with two, 13 with three, 4 empty; 79 objects. One depth frame per scene, the first stamped after the objects had settled.
+
+| Metric | Depth model on (`phase3_perception_eval_20261111T102341Z_s1`) | Ideal depth (`phase3_perception_eval_ideal_20261111T102443Z_s1`) | Pass |
+|---|---|---|---|
+| Recall (95% Wilson CI) | 79/79 (0.95–1.00) | 79/79 | ≥ 0.95 |
+| Precision | 79/79 (0.95–1.00) | 79/79 | ≥ 0.95 |
+| Correct class | 79/79 | 79/79 | ≥ 0.95 |
+| Position error xy, median / 95th percentile / max | 0.22 / 0.68 / 1.19 mm | 0.06 / 0.65 / 0.79 mm | ≤ 3 / ≤ 8 mm |
+| Yaw error modulo symmetry (cube, prism; n = 50), median / 95th percentile / max | 0.13 / 0.85 / 1.13° | 0.01 / 0.30 / 0.95° | ≤ 3 / ≤ 8° |
+| Detections in the 4 empty bins | 0 | 0 | 0 |
+| Confidence of the detections, median (min–max) | 0.95 (0.83–1.00) | 0.94 (0.80–0.99) | — |
+| Image stamp to hypotheses received | median 20 ms, max 30 ms | median 17 ms | — |
+
+| Object (depth model on) | n | Class | xy median / max | Yaw median / max | Confidence |
+|---|---|---|---|---|---|
+| cube | 24 | 24 | 0.08 / 0.31 mm | 0.07 / 0.35° | 0.90–0.98 |
+| cylinder | 29 | 29 | 0.41 / 0.70 mm | — | 0.83–0.93 |
+| prism | 26 | 26 | 0.26 / 1.19 mm | 0.23 / 1.13° | 0.88–1.00 |
+
+### Part C — pick and place from the camera hypothesis (`phase3_camera_pick_20261111T102553Z_s1`): pass
+
+30 attempts, 10 per type, interleaved; object centre drawn in the middle of the bin (±75 mm × ±35 mm, D-013), any yaw. Success as in E-002: every manipulation stage OK **and** ground truth shows the object resting upright in the output bin **and** no executed state in collision.
+
+| Object | Success (95% Wilson CI) | Cycle time median (min–max) | Place error mean / max |
+|---|---|---|---|
+| cube | 10/10 (0.72–1.00) | 18.2 s (17.4–18.8) | 10.2 / 17.3 mm |
+| cylinder | 10/10 (0.72–1.00) | 18.9 s (17.8–20.0) | 14.0 / 17.5 mm |
+| prism | 8/10 (0.49–0.94) | 18.3 s (17.1–19.3) | 6.2 / 11.9 mm |
+| **all** | **28/30 (0.79–0.98)**, pass ≥ 27 and ≥ 8 per type | **18.4 s** | **10.4 / 17.5 mm** |
+
+| Metric | Value |
+|---|---|
+| Failures by reason | `place_failed` 2 (both prism), no failed stage |
+| Selected hypothesis against ground truth | class 30/30; xy median 0.07 mm, max 0.55 mm; yaw median 0.06°, max 0.87°; confidence median 0.95 |
+| Perception time per cycle (asking for a view to object chosen) | median 0.15 s (0.03–0.36) |
+| Planning time per cycle | median 0.12 s |
+| Execution time per cycle | median 18.1 s (16.9–19.7) |
+| Executed states re-checked | 5686, 0 in collision |
+| Attempts the manipulation reported as done while ground truth disagrees | 2 |
+| RAM (Gazebo server + MoveIt + depth model + perception, no RViz) | 1.5 GiB used, 2.3 GiB available, before and after |
+
+- The two failures are not perception errors (selected pose within 0.08 mm and 0.3 mm of ground truth). Both prisms ended inside the output bin, lying on another of their three rectangular faces (object frame 11 mm above the floor instead of 22 mm: a 120° roll), which the success criterion rejects as not upright. A replay of the two scenes with the object pose sampled from the simulator showed the mechanism: during the transfer the prism turns between the pads about the finger axis (4° in one replay, up to 42° in the other, then hanging at 14°) and at release it drops back upright or onto the next face. In the replays both landed upright, so the outcome is not repeatable. The jaw opening does not change when the prism turns, so the grasp and hold checks cannot see it: the manipulation reported success both times and only the ground-truth evaluation caught it.
+- Comparison with the known-pose baseline (E-002, 30/30, median cycle 18.4 s): same cycle time, perception adds 0.15 s. E-002 used one pose per type (prism yaw 0.5 rad) and did not expose the prism turning in the grasp; the random yaw here did.
+- Limits: separate objects in their catalog orientation only; one frame per scene; the depth error model is per-pixel noise on ideal depth, not simulated stereo (D-011), so these accuracies are an upper bound for a real D415; pick region limited to the middle of the bin, one grasp per object, no retry; the prism passes at its threshold (8/10) with a wide interval; perception sees the arm if it is inside the bin volume, so views are taken at ready only.
+- Development runs before these (not counted, code not yet committed): `phase3_perception_dev_20261111T101505Z_s1000` 19/19 objects, xy median 0.9 mm before the principal-point correction; `phase3_camera_pick_20261111T101647Z_s1000` 6/6; `phase2_pick_place_20261111T101530Z_s1` 3/3 (E-002 cycle with the camera body as a MoveIt obstacle, 0 of 578 states in collision). The first calibration run failed its reprojection check at 15 px because the check script counted the bin-wall pixels at the cube's top height; fixed in the script, not in the camera.
+- Open for phase 4: a held prism can turn about the finger axis during the transfer (grasp point, transfer acceleration or a place check from the camera); verification of the output bin by perception, so the cell itself detects a wrong place; grasp candidates near the walls; clutter.
+- Conclusion: phase 3 measurable test passes on all three parts.

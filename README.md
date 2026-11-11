@@ -59,7 +59,7 @@ On GPUs limited to OpenGL 2.1 (e.g. the UTM virtio GPU) Gazebo uses the Ogre 1 r
 ## Run
 
 ```bash
-# Cell: Gazebo (headless by default), MoveIt 2 move_group, RViz
+# Cell: Gazebo (headless by default) with the RGB-D camera, MoveIt 2 move_group, perception, RViz
 ros2 launch openfactory_bringup cell.launch.py              # headless:=false for the Gazebo GUI, rviz:=false without RViz
 
 # Phase 1 reach test (in another terminal, with the cell running): 10 seeded goals, logs in ~/openfactory_data/trials/
@@ -71,4 +71,16 @@ ros2 run openfactory_manipulation pick_place_once --object cube
 
 # Phase 2 closing test (cell launched with headless:=true rviz:=false): 10 cycles per object
 python3 <repo>/scripts/phase2_pick_place_test.py
+
+# Camera-driven pick: spawn a seeded scene, look at what perception reports, pick the best hypothesis
+python3 <repo>/scripts/randomize_scene.py --seed 1 --index 0 --objects 1 --spawn
+ros2 topic echo --once /perception/objects
+ros2 run openfactory_manipulation pick_perceived_once
+
+# Phase 3 closing test: calibration check, perception accuracy on 44 seeded scenes, 30 camera-driven picks
+python3 <repo>/scripts/phase3_camera_check.py
+python3 <repo>/scripts/phase3_perception_test.py
+python3 <repo>/scripts/phase3_camera_pick_test.py
 ```
+
+The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.

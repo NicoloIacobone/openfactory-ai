@@ -114,3 +114,21 @@ def test_strategies():
         rk.Ranker({**WEIGHTS, 'strategy': 'learned'})
     with pytest.raises(ValueError):
         rk.Ranker({**WEIGHTS, 'strategy': 'oracle'})
+
+
+def test_the_shipped_model_uses_the_features_the_cell_computes():
+    """The model in config/ was fitted on logged features: every name it weighs must still be
+    produced by ranking.features (a class one-hot counts for any class)."""
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / 'config' / 'grasp_ranker.json'
+    model = rk.load_model(path)
+    item = unknown()
+    grasp = gr.generate(item, task.unknown_spec(item.size), GRIPPER, PARAMS)[1]
+    produced = set(rk.features(item, grasp, {'wall_clearance': 0.01, 'neighbour_clearance': 0.01},
+                               5, 0, INNER))
+    unknown_names = [n for n in model.names if not n.startswith('class_') and n not in produced]
+    assert not unknown_names
+    assert model.meta['runs'] and all('_train_' in run for run in model.meta['runs'])
+    assert 0.0 < model.probability(_candidate(item, grasp, {'wall_clearance': 0.01,
+                                                            'neighbour_clearance': 0.01})
+                                   ['features']) < 1.0

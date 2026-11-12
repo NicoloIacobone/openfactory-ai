@@ -158,6 +158,13 @@ No package installed. Already present and used: `ros-jazzy-vision-msgs` 4.1.1, `
 - RAM with Gazebo server + MoveIt + depth model + perception + GNOME, no RViz: 1.5 GiB used, 2.3 GiB available. Resident: `gz sim` 345 MB, `scene_perception` 174 MB, `move_group` 101 MB, `depth_sensor_model` 78 MB, bridge 55 MB.
 - With `camera:=false` the fixtures model has no sensor and the cell runs without a display, as in phase 2.
 
+## Phase 5 runs — 2026-11-12
+
+No package installed. The learned grasp ranking is trained with NumPy 1.26.4 (`scripts/ranker_fit.py`, batch, seconds) and evaluated in pure Python inside `openfactory_manipulation`; scikit-learn and PyTorch are not installed and not needed. The VM was restarted before the phase 5 runs; the cell was relaunched over SSH with the display variables (D-005) and ran about 5.5 hours of benchmarks without a restart.
+
+- RAM during a benchmark (Gazebo server + MoveIt + depth model + perception + harness + GNOME, no RViz): 1.5 GiB used, 2.4 GiB available; real-time factor ≈ 1.0, load average 3–4 on 4 cores. Resident: `gz sim` 357 MB, `scene_perception` 194 MB, harness 110 MB, `move_group` 105 MB.
+- Trial logs of all phase 5 runs: 19 MB in `~/openfactory_data/trials`.
+
 ## Selected stack
 
 | Area | Choice | Why |
@@ -169,6 +176,7 @@ No package installed. Already present and used: `ros-jazzy-vision-msgs` 4.1.1, `
 | Gripper | Project parallel-jaw gripper, `position_controllers/GripperActionController` (D-007) | No install; E-002 30/30 |
 | Camera | Gazebo `rgbd_camera` with D415 geometry, depth error model in `depth_sensor_model` (D-011) | Renders with Ogre 1 on the VM display; no install |
 | Perception | NumPy + OpenCV geometric baseline, `vision_msgs` output (D-012) | Already installed; 9 ms per frame |
+| Learned ranking | Logistic regression fitted with NumPy, inference in pure Python (D-019) | No install; selection time unchanged (0.035 s median) |
 
 Final choices are recorded in `docs/decisions.md` once installation and a phase-1 test confirm them.
 

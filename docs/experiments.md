@@ -246,3 +246,40 @@ Attempts by what the target really was and how it was held:
 - What the random order tried: standing prism across the long side 0/31; across the short side 32/33; lying cylinder across the diameter 60/61; every catalog grasp 194/194, plus one prism that spawned standing and was tried as a catalog prism (below). The two failures off the wedge are one event: in scene 43 a lying cylinder slipped out during the transfer (`grasp_slipped`, detected), fell back into the input bin and knocked a standing prism over; the next grasp on that prism failed (`grasp_failed`, the cluster was no longer what had been measured), and the view after it showed a prism lying ridge-up, recognised as a catalog prism and picked. Recovery by looking again.
 - Model (`openfactory_manipulation/config/grasp_ranker.json`, report `grasp_ranker_report.json`; `python3 scripts/train_grasp_ranker.py data/trials/phase5_tumbled_train_explore_20261112T175806Z_s5000 --out …`): L2 weight 0.3 chosen from {0.3, 1, 3, 10, 30, 100} by 5-fold cross-validation grouped by scene (it is the smallest of the grid; stronger weights score worse on log-loss, weaker ones were not tried). Out-of-fold log-loss 0.065 against 0.332 for a constant prediction at the success rate, Brier 0.009 against 0.093, AUC 0.97. The largest negative weights (standardised features) are `unknown_width_ratio` −2.5, `width_ratio` −2.4, `width` −2.1 and `class_unknown` −1.3; the largest positive is the perception score +1.3.
 - Sanity check on the development candidates (seed 5100, not used for training): P(success) 0.10–0.24 for an `unknown` cluster across its long side, 0.94–0.99 across its short side, above 0.999 for catalog cubes and cylinders.
+
+### Part C — learned ranking vs baseline on the held-out seeds
+
+Runs: `phase5_tumbled_eval_learned_20261112T202750Z_s51` and `phase5_tumbled_confirm_learned_20261112T210142Z_s52` (model of part B, code `df5384b`, log commit `cf65645`, which adds only the model, a test and docs), against the baseline runs of part A on the same scenes. `scripts/compare_strategies.py` on the run directories gives every number below.
+
+| Metric | `eval` baseline | `eval` learned | `confirm` baseline | `confirm` learned |
+|---|---|---|---|---|
+| Pick success (95 % Wilson CI) | 100/109 (0.85–0.96) | **99/101 (0.93–0.99)** | 95/103 (0.85–0.96) | **99/102 (0.92–0.99)** |
+| on `unknown` targets | 35/44 | 34/36 | 32/40 | 36/38 |
+| on catalog targets | 65/65 | 65/65 | 63/63 | 63/64 |
+| Completion | 100/100 | 99/100 | 95/100 | 100/100 |
+| Failures by reason | 7 `grasp_failed`, 2 `grasp_slipped` | 2 `grasp_failed` | 5 `grasp_failed`, 3 `grasp_slipped` | 1 `grasp_failed`, 2 `grasp_slipped` |
+| Scene ends | 22 `bin_empty` | 21 `bin_empty`, 1 `no_feasible_grasp` | 20 `bin_empty`, 2 `failure_budget` | 22 `bin_empty` |
+| Executed states in collision | 0 of 19 192 | 0 of 18 133 | 0 of 18 230 | 0 of 18 391 |
+| Undetected failures; false alarms | 0; 0 | 0; 0 | 0; 0 | 0; 1 |
+| Detected failures recovered | 9/9 | 2/2 | 8/8 | 3/3 |
+| Cycle time per attempt, median; grasp selection, median | 18.1 s; 0.036 s | 17.9 s; 0.035 s | 18.1 s; 0.036 s | 18.2 s; 0.035 s |
+| Thresholds of part A | pass | pass | pass | pass |
+
+Paired differences, learned − baseline, per scene (bootstrap over scenes, 10 000 resamples, 95 % interval):
+
+| | `eval` (20 scenes) | `confirm` (20 scenes) | both (40 scenes) |
+|---|---|---|---|
+| Pick success | +0.063 (+0.020, +0.107) | +0.048 (−0.010, +0.111) | **+0.056 (+0.022, +0.092)** |
+| Failed attempts per scene | −0.35 (−0.60, −0.10) | −0.25 (−0.60, +0.05) | **−0.30 (−0.50, −0.13)** |
+| Completion | −0.01 (−0.03, 0.00) | +0.05 (0.00, +0.13) | +0.02 (−0.01, +0.06) |
+
+Over the 40 scenes: learned 198/203 attempts (0.94–0.99), 199/200 objects; baseline 195/212 (0.88–0.95), 195/200 objects. Reference `catalog_only` (the phase 4 cell, `…eval_catalog_only_20261112T194140Z_s51`, `…confirm_catalog_only_20261112T200350Z_s52`): 65/65 and 62/63 attempts but only 65/100 and 63/100 objects; 17 scenes of each set end as `only_unknown`, with every tumbled object left in the bin.
+
+- The learned ranking does what the data showed: it holds a standing prism across the short side (36 of 36 such choices succeeded with a feasible alternative available) and no longer meets the wedge when it can avoid it. Its pick success is higher on both held-out seeds, which is the rule of D-019, so it is the default from commit `5f1a5fa`. The difference is significant over the 40 scenes and on `eval`, not on `confirm` alone.
+- Its 5 failures: 3 times the short side of a standing prism was rejected by the wall filter and the wedge was the only feasible candidate (P(success) 0.04–0.16): a ranking orders, it never refuses, so the cell tried it. Twice the next view made the short side feasible and the prism was picked; once (`eval` scene 16) it did not, and the prism was left (`no_feasible_grasp`, true). One face-against-edge grasp failed (`confirm` scene 9: the jaws stopped at 55 mm, detected, picked at the next attempt). One cube slipped during the transfer and fell into the output bin: the cell reported `grasp_slipped` while the cube was deposited, the only false alarm of the phase 5 runs with the frozen code.
+- Why scene 16 differed: the baseline met the same prism with its short side clear. The minimum rectangle around a triangle has three equivalent orientations; perception picks one, and the two runs did not see bit-identical depth images, so the choice differed. The paired differences carry that run-to-run noise too.
+- The learned score added no measurable time: grasp selection 0.035 s median with it, 0.036 s without. Training takes seconds on the VM.
+
+### Part D — recovery
+
+Every detected failure in the phase 5 runs with the frozen code, held-out and training: 9 + 8 (baseline), 2 + 3 (learned), 1 (`catalog_only`), 33 (training) = **56 of 56** followed by the cell back at ready with a new view on its own (95 % Wilson CI 0.94–1.00; threshold ≥ 0.90 with at least 20 failures). Of the 56, 51 were wedges, 1 a face-against-edge miss, 3 slips in the transfer and 1 the cascade of training scene 43. No recovery needed the straight-up escape (0 escapes), no object was lost out of both bins and no object was disturbed by a pick. What did end scenes early was the loop's own budget: 2 `failure_budget` scenes with the baseline on `confirm`, none with the learned ranking.

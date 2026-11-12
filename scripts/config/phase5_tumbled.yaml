@@ -5,7 +5,7 @@
 # Tuning uses `dev` only; training data comes from `train` only; `eval` and `confirm` are run
 # with the code and the thresholds frozen.
 run_name: phase5_tumbled
-default_strategy: baseline
+default_strategy: learned        # since E-005 part C; was baseline until then
 strategies:                     # benchmark.py --strategy NAME
   catalog_only:                 # the phase 4 cell: unknown clusters are never tried (reference)
     unknown_grasps: false

@@ -54,7 +54,7 @@ selection:                           # grasp candidates and hard filters (phase 
   finger_clearance: 0.003            # m, fingers to the bin walls and to the other objects
   max_feasible: 4                    # MoveIt-checked survivors to rank; the rest is not evaluated
   ik_timeout_s: 0.05                 # s, collision-free IK search for one pre-grasp
-  unknown_grasps: false              # phase 5 (D-018): grasp clusters perception cannot name,
+  unknown_grasps: true               # phase 5 (D-018): grasp clusters perception cannot name,
                                      # as boxes of their measured footprint and height
   unknown_width_tolerance: 0.008     # m, jaw opening vs the measured width of such a cluster:
                                      # the top view erodes sharp vertices (a standing prism
@@ -62,8 +62,10 @@ selection:                           # grasp candidates and hard filters (phase 
                                      # under it (2 x squeeze_depth)
 
 ranking:                             # order of the feasible candidates (D-016, D-019)
-  strategy: baseline                 # baseline | uniform_random | learned
-  model: null                        # learned: model file, relative to this directory
+  strategy: learned                  # baseline | uniform_random | learned; learned is the
+                                     # default since E-005 (higher pick success than baseline
+                                     # on both held-out seeds)
+  model: grasp_ranker.json           # learned: model file, relative to this directory
   learned_motion: 0.1                # learned: P(success) minus this times motion / motion_cap
   # baseline score (higher is better)
   confidence: 1.0                    # weight of the perception score of the object, in (0, 1]

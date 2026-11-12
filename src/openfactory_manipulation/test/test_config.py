@@ -56,3 +56,11 @@ def test_a_missed_unknown_grasp_is_still_detected():
     selection, grasp = CONFIG['selection'], CONFIG['grasp']
     assert grasp['width_tolerance'] <= selection['unknown_width_tolerance'] \
         < 2 * grasp['squeeze_depth']
+
+
+def test_the_default_ranking_has_its_model():
+    from openfactory_manipulation.core import ranking
+    weights = CONFIG['ranking']
+    assert weights['strategy'] in ranking.STRATEGIES
+    if weights['strategy'] == 'learned':
+        ranking.Ranker(weights, ranking.load_model(PACKAGE / 'config' / weights['model']))

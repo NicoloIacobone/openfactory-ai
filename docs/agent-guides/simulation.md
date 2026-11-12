@@ -31,6 +31,7 @@ Simulator and version are those recorded in `docs/environment.md` and `docs/deci
 - `scripts/randomize_scene.py` (when created) takes an explicit seed and config file, and writes the generated object list (type, pose) next to the trial logs.
 - Same seed + same config + same code version → same scene. Record the git commit with each trial.
 - Spawning happens before a trial starts; objects are not moved by the harness during a trial.
+- Rest states (phase 5): catalog orientation, or `tumbled` (cylinder on its side, prism on an end face) from `scripts/scene_objects.py` (`rest_rpy`, `resting_size`, `rest_error`). `tumbled_share` in a scene config turns them on; without it the sampler draws exactly what it drew in phases 3 and 4.
 
 ## Resources (3.8 GB VM)
 

@@ -46,6 +46,12 @@ pre-grasp → approach → close gripper → verify contact → lift → (attach
 - Views are taken with the arm at ready only: perception sees whatever is in the bin volume.
 - A held prism can swing between the pads (D-015); do not raise its grasp.
 
+## Phase 5: unknown clusters and ranking strategies
+
+- `selection.unknown_grasps` lets the cell try clusters perception cannot name (D-018): two candidates per cluster (`across_long`, `across_short`), same hard filters. Their width is measured, so the jaw checks use `selection.unknown_width_tolerance`.
+- A standing prism held across the long side of its footprint is a wedge: the pads squeeze the slanted faces and it slips out (`grasp_failed`). Across the short side it holds.
+- `ranking.strategy`: `baseline` | `uniform_random` | `learned` (D-019, `core/ranking.py`). Strategies only order feasible candidates; never put a feasibility check in a score. `ranking.features` is the single source of the features for logs and inference: change it only together with a new training run.
+
 ## Phase 2 note
 
 Deterministic pick/place uses a known object pose as fixed infrastructure input, documented as such; it is the baseline that camera-driven picking is compared against later.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 4 benchmark: autonomous random bin picking over seeded scenes (E-004).
+"""Bin-picking benchmark over seeded scenes: phase 4 (E-004) and phase 5 (E-005).
 
 For every scene the harness spawns several catalog objects at seeded random poses in the input
 bin (between scenes, never during one) and empties the output bin. The cell then works alone
@@ -8,9 +8,12 @@ and places, verifies with the next view, and repeats until it sees the bin empty
 After each attempt the harness reads simulator ground truth, which neither perception nor
 manipulation sees, and re-checks the executed arm states with MoveIt.
 Logs: ~/openfactory_data/trials/<run_id>/ (attempts.jsonl, scenes.jsonl, summary.json).
+A config with `strategies` (phase 5) runs the cell with the strategy given by --strategy: which
+objects it may try and how it ranks the feasible grasps (D-018, D-019).
 
 Run in the VM with the cell launched (camera and perception on, RViz not needed):
-    python3 scripts/benchmark.py [--set dev|eval] [--config FILE] [--scenes N] [--first N]
+    python3 scripts/benchmark.py [--config FILE] [--set dev|eval] [--strategy NAME]
+                                 [--scenes N] [--first N]
 """
 
 import argparse
@@ -57,11 +60,14 @@ def read_states(ctx, objects):
 
 
 def perception_error(target, name, before, cell):
-    """How far the cell's idea of the object it aimed at is from ground truth."""
+    """How far the cell's idea of the object it aimed at is from ground truth. A tumbled
+    object is not in the catalog's rest state, so `unknown` is the right class for it."""
     if name is None:
         return None
     origin, truth = so.bin_origin(cell, 'input'), before[name]
-    return {'class_ok': target['class_id'] == truth['type'],
+    expected = truth['type'] if truth['rest'] == so.CATALOG_REST else 'unknown'
+    return {'class_ok': target['class_id'] == expected, 'truth_type': truth['type'],
+            'truth_rest': truth['rest'],
             'xy_error_m': math.hypot(truth['xyz'][0] - origin[0] - target['x'],
                                      truth['xyz'][1] - origin[1] - target['y'])}
 
@@ -80,6 +86,7 @@ def attempt_record(ctx, trial_id, attempt, before, after, states):
         'attempt': attempt['attempt'],
         'object_category': evaluation['target_type'] or target['class_id'],
         'objects_seen': attempt['objects'],
+        'ranking': attempt['strategy'],
         'selected_grasp': {**target, 'frame': c.INPUT_BIN_FRAME, 'tcp': manipulation['grasp']},
         'candidates': attempt['candidates'],
         'candidates_total': attempt['candidates_total'],
@@ -117,12 +124,12 @@ def run_scene(ctx, trial_id, n_objects, log_path):
     start = time.monotonic()
 
     common.clear_objects(ctx['scene'], ctx['names'])
-    picker.reset()
+    picker.reset(seed=f"{ctx['meta']['seed']}:{trial_id}")
     objects = [] if n_objects == 0 else rs.sample_scene(
         ctx['meta']['seed'], trial_id, n_objects, catalog, cell, cfg['scene'])
     common.spawn_scene(ctx['scene'], objects, catalog, cell)
     common.spin_for(node, ev_cfg['settle_s'])
-    _, resting = common.read_truth(ctx['scene'], objects, cell, ev_cfg)
+    _, resting = common.read_truth(ctx['scene'], objects, cell, ev_cfg, catalog)
 
     records, before = [], read_states(ctx, objects)
     if not resting:
@@ -166,10 +173,27 @@ def validate_scene(record):
     return record
 
 
+def apply_strategy(cfg, pp_cfg, name):
+    """(strategy name for the log, pick_place config) for a benchmark config. Phase 4 configs
+    have one fixed strategy; phase 5 configs name several (D-019) and pick one."""
+    if 'strategies' not in cfg:
+        if name is not None:
+            raise ValueError('this config has a single strategy')
+        return cfg['strategy'], pp_cfg
+    name = name or cfg['default_strategy']
+    chosen = cfg['strategies'][name]
+    pp_cfg = {**pp_cfg, 'selection': {**pp_cfg['selection'],
+                                      'unknown_grasps': chosen['unknown_grasps']},
+              'ranking': {**pp_cfg['ranking'], 'strategy': chosen['ranking'],
+                          'model': chosen.get('model', pp_cfg['ranking']['model'])}}
+    return name, pp_cfg
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
     parser.add_argument('--set', default='eval', dest='which', help='scene set of the config')
+    parser.add_argument('--strategy', help='strategy of a phase 5 config (default: its default)')
     parser.add_argument('--scenes', type=int, help='overrides the number of scenes (smoke runs)')
     parser.add_argument('--first', type=int, default=0, help='index of the first scene')
     parser.add_argument('--out', type=Path, default=Path.home() / 'openfactory_data' / 'trials')
@@ -184,12 +208,14 @@ def main():
     full = args.scenes is None and args.first == 0
     schedule = schedule[args.first:None if args.scenes is None else args.first + args.scenes]
     pp_cfg, catalog, gripper = load_configs(cfg['pick_place_config'])
+    strategy, pp_cfg = apply_strategy(cfg, pp_cfg, args.strategy)
     _, cell = load_config()                  # installed openfactory_description, as the cell uses
 
-    run_id = (f"phase4_bin_picking_{args.which}_"
+    label = args.which if 'strategies' not in cfg else f'{args.which}_{strategy}'
+    run_id = (f"{cfg.get('run_name', 'phase4_bin_picking')}_{label}_"
               f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_s{seed}")
     meta = {'run_id': run_id, 'git_commit': tl.git_commit(REPO), 'seed': seed,
-            'config': tl.config_ref(args.config), 'strategy': cfg['strategy']}
+            'config': tl.config_ref(args.config), 'strategy': strategy}
     out_dir = args.out / run_id
     out_dir.mkdir(parents=True)
 
@@ -219,6 +245,8 @@ def main():
         rclpy.shutdown()
 
     summary = {**meta, 'set': args.which, 'scenes_run': len(scenes), 'full_set': full,
+               'ranking': pp_cfg['ranking']['strategy'],
+               'unknown_grasps': pp_cfg['selection'].get('unknown_grasps', False),
                **be.summarize(attempts, scenes, cfg['thresholds'])}
     summary['passed'] = summary['passed'] and full
     (out_dir / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')

@@ -1,0 +1,55 @@
+# Phase 5 (E-005): bin picking with tumbled objects, and grasp-ranking strategies compared on
+# the same held-out scenes. Same cell, harness and evaluation as phase 4 (E-004); the scenes
+# hold cylinders lying on their side and prisms standing on an end face, which the geometric
+# perception of D-012 does not name (`unknown` clusters, D-018).
+# Tuning uses `dev` only; training data comes from `train` only; `eval` and `confirm` are run
+# with the code and the thresholds frozen.
+run_name: phase5_tumbled
+default_strategy: baseline
+strategies:                     # benchmark.py --strategy NAME
+  catalog_only:                 # the phase 4 cell: unknown clusters are never tried (reference)
+    unknown_grasps: false
+    ranking: baseline
+  baseline:                     # grasps on unknown clusters too, ranked by the D-016 score
+    unknown_grasps: true
+    ranking: baseline
+  explore:                      # same feasible candidates in a uniform random order: training data
+    unknown_grasps: true
+    ranking: uniform_random
+  learned:                      # same feasible candidates ranked by the learned P(success) (D-019)
+    unknown_grasps: true
+    ranking: learned
+    model: grasp_ranker.json    # openfactory_manipulation/config
+
+objects_per_scene: 5            # types drawn from the catalog by the scene seed
+scene:                          # randomize_scene.sample_scene
+  wall_margin: 0.008            # m, footprint circle to the bin walls, as in phase 4
+  min_gap: 0.010                # m, between footprint circles: close, never touching
+  tumbled_share: 0.5            # a cylinder lies, a prism stands on an end face, with this probability
+
+sets:                           # disjoint seeds
+  train: {seed: 5000, scenes: 60, empty_scenes: 0}
+  dev: {seed: 5100, scenes: 6, empty_scenes: 1}
+  eval: {seed: 51, scenes: 20, empty_scenes: 2}
+  confirm: {seed: 52, scenes: 20, empty_scenes: 2}
+
+pick_place_config: null         # null: openfactory_manipulation/config/pick_place.yaml
+
+evaluation:                     # as phase 4 (E-004)
+  settle_s: 1.0
+  rest_interval_s: 0.5
+  rest_motion_m: 0.001
+  spawn_tolerance_m: 0.005
+  max_tilt_rad: 0.1             # also the tolerance on the rest state of a tumbled object at spawn
+  rest_height_m: 0.005
+  disturbed_m: 0.005
+  match_distance_m: 0.02
+  record_period_s: 0.1
+
+thresholds:                     # of the default strategy on `eval` and `confirm`
+  min_completion: 0.80
+  min_completion_per_type: 0.70
+  min_pick_success: 0.75
+  max_invalid_states: 0
+  max_undetected_failures: 3
+  min_recovery: 0.90

@@ -30,17 +30,20 @@ def spin_for(node, seconds):
 
 
 def spawn_scene(scene, objects, catalog, cell):
-    """Spawn sampled objects [{'name', 'type', 'x', 'y', 'yaw'}] resting in the input bin."""
+    """Spawn sampled objects [{'name', 'type', 'x', 'y', 'yaw', 'rest'?}] resting in the input
+    bin, in their catalog orientation unless `rest` says otherwise."""
     for item in objects:
-        spec = catalog['objects'][item['type']]
-        xyz, yaw = so.spawn_pose(cell, 'input', spec, item['x'], item['y'], item['yaw'])
+        spec, rest = catalog['objects'][item['type']], item.get('rest', so.CATALOG_REST)
+        xyz, yaw = so.spawn_pose(cell, 'input', spec, item['x'], item['y'], item['yaw'], rest=rest)
         scene.spawn(item['name'], so.model_sdf(item['name'], spec, catalog['friction']), xyz,
-                    (0.0, 0.0, yaw))
+                    so.rest_rpy(spec, rest, yaw))
 
 
-def read_truth(scene, objects, cell, tolerances):
+def read_truth(scene, objects, cell, tolerances, catalog=None):
     """Ground truth of the spawned objects in the input_bin frame, and whether each one rests
-    upright where it was spawned: ([{'name', 'type', 'x', 'y', 'yaw'}], all_resting)."""
+    where it was spawned, in the rest state it was spawned in (catalog orientation unless the
+    item has a `rest`; then `catalog` is needed): ([{'name', 'type', 'x', 'y', 'yaw'}],
+    all_resting)."""
     origin = so.bin_origin(cell, 'input')
     poses = scene.model_poses([item['name'] for item in objects])
     truth, resting = [], True
@@ -51,7 +54,10 @@ def read_truth(scene, objects, cell, tolerances):
             continue
         in_bin = pe.pose_in_bin(pose, origin)
         moved = max(abs(in_bin['x'] - item['x']), abs(in_bin['y'] - item['y']))
-        if moved > tolerances['spawn_tolerance_m'] or in_bin['tilt'] > tolerances['max_tilt_rad']:
+        rest = item.get('rest', so.CATALOG_REST)
+        error = in_bin['tilt'] if rest == so.CATALOG_REST else so.rest_error(
+            catalog['objects'][item['type']], rest, pose[1])
+        if moved > tolerances['spawn_tolerance_m'] or error > tolerances['max_tilt_rad']:
             resting = False
         truth.append({'name': item['name'], 'type': item['type'], 'x': in_bin['x'],
                       'y': in_bin['y'], 'yaw': in_bin['yaw']})

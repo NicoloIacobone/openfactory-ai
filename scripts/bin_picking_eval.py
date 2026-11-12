@@ -36,16 +36,18 @@ def location(xyz, cell):
 def object_states(objects, first, second, cell, catalog, tolerances):
     """Ground-truth state of every spawned object from two pose readings a moment apart.
 
-    `objects`: the scene [{'name', 'type', ...}]; `first`, `second`: {name: (xyz, quat)}.
-    Returns {name: {'type', 'location', 'at_rest', 'upright', 'xyz', 'quat'}}.
+    `objects`: the scene [{'name', 'type', 'rest'?, ...}]; `first`, `second`: {name: (xyz,
+    quat)}. Returns {name: {'type', 'rest', 'location', 'at_rest', 'upright', 'xyz', 'quat'}};
+    `rest` is the state the object was spawned in, `upright` is about the catalog orientation.
     """
     states = {}
     for item in objects:
         name, spec = item['name'], catalog['objects'][item['type']]
+        rest = item.get('rest', so.CATALOG_REST)
         pose, earlier = second.get(name), first.get(name)
         if pose is None:
-            states[name] = {'type': item['type'], 'location': MISSING, 'at_rest': False,
-                            'upright': False, 'xyz': None, 'quat': None}
+            states[name] = {'type': item['type'], 'rest': rest, 'location': MISSING,
+                            'at_rest': False, 'upright': False, 'xyz': None, 'quat': None}
             continue
         xyz, quat = pose
         where = location(xyz, cell)
@@ -56,7 +58,7 @@ def object_states(objects, first, second, cell, catalog, tolerances):
                        and abs(xyz[2] - floor - bounding_box(spec)[2] / 2)
                        <= tolerances['rest_height_m'])
         states[name] = {
-            'type': item['type'], 'location': where,
+            'type': item['type'], 'rest': rest, 'location': where,
             'at_rest': earlier is not None
             and math.dist(xyz, earlier[0]) <= tolerances['rest_motion_m'],
             'upright': upright, 'xyz': list(xyz), 'quat': list(quat)}

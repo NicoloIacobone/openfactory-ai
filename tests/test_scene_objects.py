@@ -109,3 +109,45 @@ def test_quaternion_from_rpy_matches_rotation_matrix(rpy):
     expected = _rpy_matrix(*rpy)
     for row, expected_row in zip(from_quat, expected):
         assert row == pytest.approx(expected_row)
+
+
+def test_rest_states():
+    assert so.rest_states(OBJECTS['cube']) == ('catalog',)
+    assert so.rest_states(OBJECTS['cylinder']) == so.rest_states(OBJECTS['prism']) == (
+        'catalog', 'tumbled')
+    with pytest.raises(ValueError):
+        so.rest_rpy(OBJECTS['cube'], 'tumbled')
+    assert so.resting_size(OBJECTS['cylinder'], 'tumbled') == pytest.approx([0.05, 0.08, 0.05])
+    assert so.resting_size(OBJECTS['prism'], 'tumbled') == pytest.approx(
+        [0.05 * math.sqrt(3) / 2, 0.05, 0.06])
+    xyz, _ = so.spawn_pose(CELL, 'input', OBJECTS['prism'], 0.0, 0.0, 0.0, rest='tumbled')
+    assert xyz[2] == pytest.approx(0.76 + 0.03 + 0.002)
+
+
+@pytest.mark.parametrize('name', ['cylinder', 'prism'])
+def test_resting_size_is_the_rotated_bounding_box(name):
+    """resting_size equals the extent of the bounding box turned by rest_rpy."""
+    spec = OBJECTS[name]
+    rot = _rpy_matrix(*so.rest_rpy(spec, 'tumbled'))
+    half = [v / 2 for v in so.bounding_box(spec)]
+    corners = [[sum(rot[i][j] * c[j] for j in range(3)) for i in range(3)]
+               for c in ((sx * half[0], sy * half[1], sz * half[2])
+                         for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1))]
+    extent = [max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3)]
+    assert extent == pytest.approx(so.resting_size(spec, 'tumbled'))
+
+
+def test_rest_error():
+    cylinder, prism = OBJECTS['cylinder'], OBJECTS['prism']
+    lying = so.quaternion_from_rpy(*so.rest_rpy(cylinder, 'tumbled', 1.0))
+    assert so.rest_error(cylinder, 'tumbled', lying) == pytest.approx(0.0, abs=1e-6)
+    # rolled about its own axis: still lying
+    rolled = so.quat_multiply(lying, so.quaternion_from_rpy(0.0, 0.0, 0.8))
+    assert so.rest_error(cylinder, 'tumbled', rolled) == pytest.approx(0.0, abs=1e-6)
+    assert so.rest_error(cylinder, 'tumbled', (0.0, 0.0, 0.0, 1.0)) == pytest.approx(math.pi / 2)
+    standing = so.quaternion_from_rpy(*so.rest_rpy(prism, 'tumbled', -2.0))
+    assert so.rest_error(prism, 'tumbled', standing) == pytest.approx(0.0, abs=1e-6)
+    upside = so.quaternion_from_rpy(0.0, -math.pi / 2, 0.3)
+    assert so.rest_error(prism, 'tumbled', upside) == pytest.approx(0.0, abs=1e-6)
+    assert so.rest_error(prism, 'tumbled', (0.0, 0.0, 0.0, 1.0)) == pytest.approx(math.pi / 2)
+    assert so.rest_error(prism, 'catalog', (0.0, 0.0, 0.0, 1.0)) == pytest.approx(0.0)

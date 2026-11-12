@@ -56,6 +56,10 @@ selection:                           # grasp candidates and hard filters (phase 
   ik_timeout_s: 0.05                 # s, collision-free IK search for one pre-grasp
   unknown_grasps: false              # phase 5 (D-018): grasp clusters perception cannot name,
                                      # as boxes of their measured footprint and height
+  unknown_width_tolerance: 0.008     # m, jaw opening vs the measured width of such a cluster:
+                                     # the top view erodes sharp vertices (a standing prism
+                                     # measures 3-4 mm narrower); a miss still closes 10 mm
+                                     # under it (2 x squeeze_depth)
 
 ranking:                             # order of the feasible candidates (D-016, D-019)
   strategy: baseline                 # baseline | uniform_random | learned

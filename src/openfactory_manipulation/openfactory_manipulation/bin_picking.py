@@ -170,9 +170,14 @@ class BinPicking:
         grasp = chosen['grasp']
         hypothesis = view['hypotheses'][grasp.object_index]
         target = next(obj for obj in objects if obj.index == grasp.object_index)
+        # the width of an unknown cluster is a measurement of its footprint, not a catalog
+        # size: sharp vertices are eroded in the top view, so the jaws may stop a few mm wider
+        tolerance = (self.cfg['selection']['unknown_width_tolerance']
+                     if grasp.class_id == task.UNKNOWN else None)
         manipulation = self.runner.run_grasp(
             f'in_{grasp.object_index}', chosen['tcp'], (hypothesis['xyz'], hypothesis['quat']),
-            grasp.width, target.size[2], [xy for _, xy in slots], chosen['pre_grasp_joints'])
+            grasp.width, target.size[2], [xy for _, xy in slots], chosen['pre_grasp_joints'],
+            tolerance)
 
         # the next view verifies this pick and is the input of the next step
         self.view = self._look()

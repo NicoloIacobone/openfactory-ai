@@ -86,7 +86,7 @@ class PickPlace:
 
     def _check_fingers(self, name, check, plan):
         opening = self.moveit.jaw_opening()
-        reason = check(opening, plan, self.cfg['grasp']['width_tolerance'])
+        reason = check(opening, plan, self.width_tolerance)
         self._record(name, reason, jaw_opening=opening,
                      finger_position=self.moveit.finger_position())
 
@@ -142,7 +142,7 @@ class PickPlace:
         }
 
     def run_grasp(self, object_id, grasp_tcp, object_pose, width, height, place_xys,
-                  pre_grasp_joints):
+                  pre_grasp_joints, width_tolerance=None):
         """Pick with a chosen grasp an object that is already in the planning scene.
 
         `grasp_tcp`: gripper_tcp pose (world) with the fingers closing on `width`;
@@ -150,6 +150,8 @@ class PickPlace:
         points in output_bin, tried in order until transfer and descent are feasible;
         `pre_grasp_joints`: the collision-free arm configuration above the grasp that the
         selector validated. The fingers stay pre-shaped to the object width plus the margin.
+        `width_tolerance`: how far the jaw opening may be from `width` while the object is
+        held (default `grasp.width_tolerance`); wider for a width that is only measured.
         """
         def plans():
             out_bin = self.moveit.frame_pose(c.OUTPUT_BIN_FRAME)
@@ -158,12 +160,13 @@ class PickPlace:
                                     self.gripper_cfg, params, preshape=True)
                     for xy in place_xys]
 
-        result = self._run(object_id, plans, None, pre_grasp_joints)
+        result = self._run(object_id, plans, None, pre_grasp_joints, width_tolerance)
         result['object_id'] = object_id
         return result
 
-    def _run(self, object_id, make_plans, spec, pre_grasp_joints=None):
+    def _run(self, object_id, make_plans, spec, pre_grasp_joints=None, width_tolerance=None):
         self.stages, self.place_index, self.released = [], None, None
+        self.width_tolerance = width_tolerance or self.cfg['grasp']['width_tolerance']
         self.target_place, self.recovery_position = None, None
         start = time.monotonic()
         failure, recovered, grasp = None, None, None
@@ -286,7 +289,7 @@ class PickPlace:
             self._record('preclose', None if extra['reached_goal'] else 'gripper_failed',
                          execution_s=seconds, **extra)
         opening, extra, seconds = self._gripper('close', plan.close_position)
-        reason = core.check_grasp(opening, plan, self.cfg['grasp']['width_tolerance'])
+        reason = core.check_grasp(opening, plan, self.width_tolerance)
         self._record('close', reason, execution_s=seconds, **extra)
 
         ok = self.moveit.attach_object(object_id)

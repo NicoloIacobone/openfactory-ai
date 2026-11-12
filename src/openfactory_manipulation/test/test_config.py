@@ -48,3 +48,11 @@ def test_place_points_are_enough_and_apart():
 
 def test_ready_is_a_full_arm_configuration():
     assert len(CONFIG['ready_joints']) == 6
+
+
+def test_a_missed_unknown_grasp_is_still_detected():
+    """A miss closes the jaws to the close target, 2 x squeeze_depth under the measured width:
+    the wider tolerance for measured widths must stay below that."""
+    selection, grasp = CONFIG['selection'], CONFIG['grasp']
+    assert grasp['width_tolerance'] <= selection['unknown_width_tolerance'] \
+        < 2 * grasp['squeeze_depth']

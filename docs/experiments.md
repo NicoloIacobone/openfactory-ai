@@ -197,3 +197,45 @@ The thresholds were not changed at any point. The code was, three times, after a
 - Comparison with E-003 part C (one object in the middle of the bin, 28/30, median cycle 18.4 s): same cycle time with five objects anywhere in the bin; the selection of a grasp among about 12 candidates costs 0.04 s (median), the view 0.8 s including the wait at ready.
 - Limits: objects in their catalog orientation and not touching (the user's scope for phase 4); top-down grasps only, so an object within about 45 mm of a wall on the side the fingers close from is left in the bin; the output bin and the table are not observed, so the cell does not know how a deposited object lies nor where a slipped one went; friction grasps slipped in 3 of 579 attempts and prisms turn between the pads (D-015); the depth error model is per-pixel noise, not simulated stereo (D-011). The put-back and the rule that a failed grasp is not repeated ran once, in a two-minute check on one scene of seed 2 while the second fault was being fixed (the prism was set down where it had been picked and the scene ended as `no_feasible_grasp`); in the runs with the final code no attempt failed on an object still in the input bin, so they did not run there. Evaluation seed 1 was run three times, the last two after fixes prompted by other runs; seed 3 is the cleanest evidence.
 - Conclusion: phase 4 measurable test passes on the evaluation set and on two confirmation sets.
+
+## E-005 — Phase 5: tumbled objects, learned grasp ranking vs baseline, recovery (2026-11-12)
+
+- Question: on scenes where the geometric model is incomplete (tumbled objects that perception cannot name), does the cell still empty the bin safely, does it recover from the failures it meets, and does a grasp ranking learned from simulated outcomes pick better than the hand-designed score of D-016 on the same held-out scenes?
+- Scenes (D-018): as in E-004 (5 objects, separate, anywhere in the bin), but every cylinder lies on its side and every prism stands on an end face with probability 0.5. Perception (D-012) is unchanged and publishes them as `unknown` clusters.
+- Strategies (D-019), all with the same perception, hard filters and loop: `catalog_only` (the phase 4 cell: unknown clusters are never tried, reference); `baseline` (unknown clusters get candidates across the long and the short side, ranked by the D-016 score); `explore` (same candidates, uniform random order, training data only); `learned` (same candidates, ranked by the learned P(success)).
+- Success of an attempt and the other criteria: as in E-004 (cell verdict, object deposited on any face, no executed state in collision).
+- Seeds: development 5100 (6 scenes + 1 empty), training 5000 (60 scenes, `explore` only), held-out 51 (`eval`) and 52 (`confirm`), 20 scenes + 2 empty each. Thresholds (`thresholds` in the config) fixed with the code before the first held-out run; the comparison rule (learned becomes the default only if its pick success is higher on both held-out seeds) fixed in D-019 before training.
+- Commit / config: code frozen at `df5384b` (later commits until the learned runs change docs only, so the logs record `8757d0b` and `55a5110` too); `scripts/config/phase5_tumbled.yaml` (sha256 `c012c51389d5`), `openfactory_manipulation/config/pick_place.yaml`. Cell: `ros2 launch openfactory_bringup cell.launch.py headless:=true rviz:=false` on the VM display (relaunched after a VM restart; nothing else changed). Logs in `data/trials/`.
+- Re-run, in the VM with the cell launched: `python3 scripts/benchmark.py --config scripts/config/phase5_tumbled.yaml --set eval|confirm|train|dev --strategy baseline|learned|explore|catalog_only`.
+
+### Part A — the baseline on tumbled scenes (written before any training)
+
+| Metric | `eval`, seed 51 (`phase5_tumbled_eval_baseline_20261112T164804Z_s51`) | `confirm`, seed 52 (`…confirm_baseline_20261112T172359Z_s52`) | Pass |
+|---|---|---|---|
+| Completion (95 % Wilson CI) | 100/100 (0.96–1.00) | 95/100 (0.89–0.98) | ≥ 0.80 |
+| Completion cube / cylinder / prism | 37/37, 28/28, 35/35 | 35/35, 31/31, 29/34 | each ≥ 0.70 |
+| Pick success (attempts) | 100/109 (0.85–0.96) | 95/103 (0.85–0.96) | ≥ 0.75 |
+| Executed states in collision | 0 of 19 192 | 0 of 18 230 | 0 |
+| Attempts the cell believed while ground truth disagrees; failures it reported while the object arrived | 0; 0 | 0; 0 | ≤ 3 |
+| Detected failures followed by a return to ready with a view | 9/9 | 8/8 | ≥ 0.90 |
+| Attempts on the 2 empty bins | 0 | 0 | 0 |
+| Scenes cleared; end reason correct | 20/20; 22/22 | 18/20; 22/22 | — |
+| Scene ends | 22 `bin_empty` | 20 `bin_empty`, 2 `failure_budget` | — |
+| Class of the target as perception should see it (catalog type upright, `unknown` tumbled) | 109/109 | 103/103 | — |
+| Cycle time per attempt, median (min–max); perception / planning with selection / execution | 18.1 s (7.7–21.1); 0.77 / 0.12 / 17.3 s | 18.1 s (8.2–20.8); 0.77 / 0.13 / 17.2 s | — |
+| Other objects disturbed; objects lost out of both bins | 0; 0 | 0; 0 | — |
+
+Attempts by what the target really was and how it was held:
+
+| Target (ground truth) | Grasp | `eval` | `confirm` |
+|---|---|---|---|
+| cube | catalog | 37/37 | 35/35 |
+| cylinder, standing | catalog | 12/12 | 11/11 |
+| cylinder, lying | `unknown`, across the short side (the diameter) | 16/16 | 20/20 |
+| prism, ridge up | catalog | 16/16 | 17/17 |
+| prism, standing on an end face | `unknown`, across the short side (face against edge) | 19/19 | 12/12 |
+| prism, standing on an end face | `unknown`, across the long side | **0/9** (7 `grasp_failed`, 2 `grasp_slipped`) | **0/8** (5 `grasp_failed`, 3 `grasp_slipped`) |
+
+- Both held-out sets pass every threshold with the baseline: the cell now picks the tumbled objects that the phase 4 cell could not try. All 17 failures are the same thing: a standing prism held across the long side of its footprint, which is a wedge (the pads close on the slanted faces, D-018). The D-016 score cannot see it: it prefers that side whenever it leaves more room around the fingers.
+- The failures are detected (jaws closing past the object, or opening during lift/transfer) and recovered from every time; the rule that a failed grasp is not repeated then makes the cell try the short side, which holds. On `eval` that cost 9 extra attempts and nothing else. On `confirm` it cost 5 objects: in scenes 7 and 9 three standing prisms failed one after another and the loop stopped on its budget of 3 consecutive failures (D-017), with the prisms and one prism lying ridge-up still in the bin. The cell reported `failure_budget`, which was true.
+- Development (seed 5100, not counted): the first run (`…dev_baseline_20261112T161340Z_s5100`, 29/30) also counted a held standing prism as `grasp_failed` because its measured width is 3–4 mm under the real one; fixed by the measured-width tolerance of D-018 (`67dcdc9`), then `…dev_baseline_20261112T162601Z_s5100` 29/30 objects, 29/32 attempts, and `…dev_explore_20261112T163645Z_s5100` 30/30, 30/31 with the code that was frozen. A one-scene smoke run before them: `…dev_baseline_20261112T161031Z_s5100`, 5/5.

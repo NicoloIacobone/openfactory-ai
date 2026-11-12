@@ -26,3 +26,4 @@ GRIPPER_ACTION = '/gripper_controller/gripper_cmd'
 OBJECTS_TOPIC = '/perception/objects'
 
 DESCRIPTION_PACKAGE = 'openfactory_description'
+PACKAGE = 'openfactory_manipulation'

@@ -26,7 +26,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 
 from . import constants as c
-from .core import grasps, task
+from .core import grasps, ranking, task
 from .core import pick_place as core
 from .grasp_selector import GraspSelector, candidate_record
 from .moveit_interface import ManipulationError
@@ -39,6 +39,17 @@ def load_cell():
     """Cell layout (fixed infrastructure) from openfactory_description."""
     description = Path(get_package_share_directory(c.DESCRIPTION_PACKAGE)) / 'config'
     return yaml.safe_load((description / 'cell.yaml').read_text())
+
+
+def load_model(config):
+    """The grasp-ranking model of the `learned` strategy (D-019), None for the others. A
+    relative path is taken from this package's config directory."""
+    if config['ranking']['strategy'] != 'learned':
+        return None
+    path = Path(config['ranking']['model'])
+    if not path.is_absolute():
+        path = Path(get_package_share_directory(c.PACKAGE)) / 'config' / path
+    return ranking.load_model(path)
 
 
 def object_record(obj):
@@ -55,7 +66,7 @@ class BinPicking:
         self.inner_size = cell['bins'][c.INPUT_BIN]['inner_size']
         self.runner = PickPlace(node, config, catalog, gripper)
         self.moveit = self.runner.moveit
-        self.selector = GraspSelector(self.moveit, config, catalog, gripper)
+        self.selector = GraspSelector(self.moveit, config, catalog, gripper, load_model(config))
         self.client = PerceptionClient(node)
         self.state = task.TaskState()
         self.view = None                         # latest view of the input bin, see _look
@@ -64,11 +75,14 @@ class BinPicking:
     def wait_ready(self):
         self.runner.wait_ready()
 
-    def reset(self):
-        """Start a new scene: a new input bin and an empty output bin."""
+    def reset(self, seed=None):
+        """Start a new scene: a new input bin and an empty output bin. `seed` fixes the random
+        order of the uniform_random ranking for this scene."""
         self.state = task.TaskState()
         self.view = None
         self.moveit.clear_objects()
+        if seed is not None:
+            self.selector.reseed(seed)
 
     # -- perception ----------------------------------------------------------------------
 
@@ -130,8 +144,7 @@ class BinPicking:
         if view is None:
             return self._end('no_view')
         objects = view['objects']
-        pickable = [obj for obj in objects if obj.class_id in self.catalog['objects']
-                    and obj.score >= self.cfg['perception']['min_score']]
+        pickable = self.selector.pickable(objects)
         if self.state.max_attempts is None:
             self.state.max_attempts = task.attempt_budget(len(objects), limits)
         slots = task.free_slots(self.cfg['place']['slots'], self.state.placed)
@@ -145,7 +158,8 @@ class BinPicking:
                 return self._end('no_view', view)
             selection = self.selector.select(
                 objects, self.moveit.frame_pose(c.INPUT_BIN_FRAME), self.inner_size,
-                excluded=lambda grasp: task.excluded(grasp, self.state.failures, limits))
+                excluded=lambda grasp: task.excluded(grasp, self.state.failures, limits),
+                failures=self.state.failures)
         except ManipulationError:
             return self._end('no_view', view)
         selection_s = time.monotonic() - start
@@ -185,6 +199,7 @@ class BinPicking:
             'attempt': self.state.attempts - 1,
             'view_stamp': view['stamp'],
             'objects': [object_record(obj) for obj in objects],
+            'strategy': selection['strategy'],
             'target': candidate_record(chosen),
             'candidates': [candidate_record(x) for x in selection['candidates']],
             'candidates_total': selection['candidates_total'],

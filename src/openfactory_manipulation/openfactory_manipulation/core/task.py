@@ -17,6 +17,7 @@ END_REASONS = ('bin_empty', 'no_view', 'only_unknown', 'no_feasible_grasp', 'out
                'attempt_budget', 'failure_budget')
 # Failure reasons the loop adds to those of the pick-and-place cycle
 OBJECT_NOT_REMOVED = 'object_not_removed'
+UNKNOWN = 'unknown'                                # class of a cluster perception cannot name
 
 
 @dataclass
@@ -51,6 +52,20 @@ def excluded(grasp, failures, limits):
                for _, _, yaw in here)
 
 
+def failures_near(x, y, failures, radius):
+    """Failed grasps of this scene within `radius` of (x, y): attempts already lost on the
+    object there."""
+    return sum(math.hypot(fx - x, fy - y) <= radius for fx, fy, _ in failures)
+
+
+def pickable(objects, catalog_names, min_score, unknown_grasps):
+    """Objects the cell may try: a catalog type with at least `min_score`, and, with
+    `unknown_grasps` (phase 5, D-018), clusters perception could not name."""
+    return [obj for obj in objects
+            if (obj.class_id in catalog_names and obj.score >= min_score)
+            or (unknown_grasps and obj.class_id == UNKNOWN)]
+
+
 def still_there(x, y, objects, radius):
     """True if a view shows something within `radius` of where the picked object was."""
     return any(math.hypot(obj.x - x, obj.y - y) <= radius for obj in objects)
@@ -80,8 +95,8 @@ def attempt_budget(n_objects, limits):
 def end_reason(objects, pickable, state, free_slots, limits):
     """Why the scene ends before selecting a grasp, or None to go on.
 
-    `objects`: everything the view shows in the input bin; `pickable`: those of a catalog type
-    with enough confidence.
+    `objects`: everything the view shows in the input bin; `pickable`: those the cell may try
+    (see `pickable`).
     """
     if not objects:
         return 'bin_empty'

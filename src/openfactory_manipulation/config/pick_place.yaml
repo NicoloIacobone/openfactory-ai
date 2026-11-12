@@ -54,8 +54,14 @@ selection:                           # grasp candidates and hard filters (phase 
   finger_clearance: 0.003            # m, fingers to the bin walls and to the other objects
   max_feasible: 4                    # MoveIt-checked survivors to rank; the rest is not evaluated
   ik_timeout_s: 0.05                 # s, collision-free IK search for one pre-grasp
+  unknown_grasps: false              # phase 5 (D-018): grasp clusters perception cannot name,
+                                     # as boxes of their measured footprint and height
 
-ranking:                             # baseline score of a feasible candidate (higher is better)
+ranking:                             # order of the feasible candidates (D-016, D-019)
+  strategy: baseline                 # baseline | uniform_random | learned
+  model: null                        # learned: model file, relative to this directory
+  learned_motion: 0.1                # learned: P(success) minus this times motion / motion_cap
+  # baseline score (higher is better)
   confidence: 1.0                    # weight of the perception score of the object, in (0, 1]
   clearance: 0.5                     # weight of the gripper's smallest gap, normalised by its cap
   motion: 0.3                        # weight (subtracted) of the move from ready to the pre-grasp

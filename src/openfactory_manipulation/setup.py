@@ -1,3 +1,5 @@
+from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = 'openfactory_manipulation'
@@ -9,7 +11,8 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', ['config/pick_place.yaml']),
+        # pick_place.yaml and the grasp-ranking model (phase 5)
+        ('share/' + package_name + '/config', glob('config/*.yaml') + glob('config/*.json')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

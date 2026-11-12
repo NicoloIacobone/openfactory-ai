@@ -79,12 +79,17 @@ def generate(obj, spec, gripper, params):
 
     Box: across x and across y. Cylinder (standing): `cylinder_directions` evenly spread
     directions. Triangular prism (ridge up): across its length only, on the two triangular end
-    faces; the slanted faces cannot be held by parallel pads.
+    faces; the slanted faces cannot be held by parallel pads. A cluster perception could not
+    name (phase 5, D-018) is held like a box of its footprint rectangle (`task.unknown_spec`,
+    long side along its yaw): across the long side and across the short side; nothing more is
+    known of its shape, so which one holds is left to the outcome.
     """
     shape = spec['shape']
     if shape == 'box':
-        directions = [('across_x', obj.yaw, spec['size'][0]),
-                      ('across_y', obj.yaw + math.pi / 2, spec['size'][1])]
+        labels = (('across_long', 'across_short') if obj.class_id == UNKNOWN
+                  else ('across_x', 'across_y'))
+        directions = [(labels[0], obj.yaw, spec['size'][0]),
+                      (labels[1], obj.yaw + math.pi / 2, spec['size'][1])]
     elif shape == 'cylinder':
         n = params['cylinder_directions']
         directions = [(f'direction_{k}', k * math.pi / n, 2 * spec['radius']) for k in range(n)]

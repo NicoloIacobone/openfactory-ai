@@ -67,6 +67,7 @@ def test_features():
                                              'neighbour_clearance': 0.01}, 4, 2, INNER)
     assert found['class_unknown'] == 1.0 and 'class_cube' not in found
     assert found['width_ratio'] == pytest.approx(0.0433 / 0.05)
+    assert found['unknown_width_ratio'] == found['width_ratio']
     assert found['slenderness'] == pytest.approx(0.06 / 0.0433)
     assert found['wall_clearance'] == rk.CLEARANCE_CAP
     assert found['neighbour_clearance'] == pytest.approx(0.01)

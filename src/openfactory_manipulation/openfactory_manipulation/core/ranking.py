@@ -22,6 +22,7 @@ from pathlib import Path
 from . import grasps
 
 STRATEGIES = ('baseline', 'uniform_random', 'learned')
+UNKNOWN = grasps.UNKNOWN
 CLEARANCE_CAP = 0.05          # m: clearances above this are the same for the features
 _EPS = 1e-9
 
@@ -35,11 +36,15 @@ def features(obj, grasp, clearances, n_objects, prior_failures, inner_size):
     input bin (x, y, wall height).
     """
     long_side = max(obj.size[0], obj.size[1])
+    width_ratio = grasp.width / max(long_side, _EPS)
     return {
         f'class_{obj.class_id}': 1.0,
         'object_score': obj.score,
         'width': grasp.width,
-        'width_ratio': grasp.width / max(long_side, _EPS),
+        'width_ratio': width_ratio,
+        # catalog grasps hold a known face pair; for a cluster of unknown shape the side it is
+        # held across is the open question, so its width ratio gets its own weight
+        'unknown_width_ratio': width_ratio if obj.class_id == UNKNOWN else 0.0,
         'height': obj.size[2],
         'slenderness': obj.size[2] / max(grasp.width, _EPS),
         'wall_clearance': min(clearances['wall_clearance'], CLEARANCE_CAP),

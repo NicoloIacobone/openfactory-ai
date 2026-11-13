@@ -4,8 +4,6 @@ Instructions for the coding assistant. **Reply to the user in Italian**; write c
 
 OpenFactory AI is a ROS 2 digital twin of a robotic cell that perceives a changing scene, plans collision-free actions, executes them in simulation and recovers from failures. Long term: a production line, then a multi-robot factory.
 
-**Current scope: a single-arm autonomous random bin-picking MVP.** One 6-DoF arm with a parallel-jaw gripper, one fixed RGB-D camera, one input bin with randomized rigid objects (cubes, cylinders, prisms), one fixed destination bin. No conveyors, scheduling, second robot or factory manager until the MVP Definition of Done (`README.md`) is met with logged evidence.
-
 ## Status
 
 | Phase | Goal | State |
@@ -16,7 +14,7 @@ OpenFactory AI is a ROS 2 digital twin of a robotic cell that perceives a changi
 | 3 | RGB-D camera, TF, calibration, geometric perception | closed 2026-11-11: E-003 (calibration, perception 79/79, camera-driven pick 28/30), D-011–D-013 |
 | 4 | Random bin picking MVP with metrics | closed 2026-11-11: E-004 (99/100 objects on the evaluation seed, 99/100 and 97/100 on two confirmation seeds, 0 collisions), D-014–D-017 |
 | 5 | AI and robustness: learned ranking vs baseline, recovery | closed 2026-11-12: E-005 (tumbled objects; learned ranking 198/203 vs baseline 195/212 on 40 held-out scenes, 199/200 objects, recovery 56/56, 0 collisions), D-018–D-019 |
-| 6 | Factory expansion | next |
+| 6 | Multi-arm cells: N-arm relay loop, then a Rubik's cube scramble/solve pair (`docs/ideas.md`) | next, no plan yet |
 
 A phase starts only after the previous one is closed, and closes only when its measurable test passes. When that happens, propose updating this table and `README.md`.
 
@@ -38,7 +36,7 @@ A phase starts only after the previous one is closed, and closes only when its m
 | VM (UTM 5.0.8, Ubuntu 24.04 aarch64, 3.8 GB RAM, 4 cores) | ROS 2 Jazzy, colcon, simulator, RViz. Same VM as the `doppelbot` project; SSH alias `doppelvm`. |
 
 - **Audit before changing.** The stack in `docs/environment.md` is chosen from evidence. Before installing or changing anything in the VM, read it; if the environment looks different, re-audit and update it. Never install, upgrade or migrate only to match a document. Never propose an Ubuntu release upgrade or a ROS distro migration.
-- **Memory is the main constraint.** One robot, small world, primitive objects, downsampled point clouds, headless simulator when the GUI is not needed, RViz only when needed. No heavy model training locally; keep batch benchmarks separate from interactive simulation. Prefer binary apt packages to source builds of large stacks.
+- **Memory is the main constraint.** As few arms as the task needs, small world, primitive objects, downsampled point clouds, headless simulator when the GUI is not needed, RViz only when needed. Measure RAM whenever an arm or a camera is added. No heavy model training locally; keep batch benchmarks separate from interactive simulation. Prefer binary apt packages to source builds of large stacks.
 - `ros2`, `colcon`, `apt`, `gz` and `rviz2` run only in the VM. Git runs only on the Mac.
 - The repo lives on the Mac in `~/Desktop/nico/github_portfolio/ros_2_projects/openfactory-ai`. The VM mounts the UTM share `ros_2_projects` at `/mnt/ros_2_projects`; `/mnt/openfactory-ai` is a symlink into it. Details: `docs/environment.md`, "Repo access from the VM".
 
@@ -97,6 +95,7 @@ Loop: RGB-D camera + robot state → `scene_perception` → `grasp_selector` →
 | Stack, robot, planner, tool choice or assumption | `docs/decisions.md` (new entry) |
 | Trial, benchmark, result | `docs/experiments.md` |
 | VM or tool versions | `docs/environment.md` |
+| Idea for a later phase | `docs/ideas.md` |
 
 ## Guides: read only the ones the task touches
 

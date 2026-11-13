@@ -4,7 +4,7 @@ A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recover
 
 The first deliverable is an **autonomous random bin-picking cell**; it is designed to grow into a production line and later a multi-robot factory.
 
-> Status: **phase 5, AI and robustness, is closed; phase 6, factory expansion, is next.** The cell empties on its own an input bin holding five cubes, cylinders and prisms at random poses, now including cylinders lying on their side and prisms standing on an end face, which its geometric perception does not recognise. It grasps those as clusters of unknown shape through the same hard filters (gripper geometry, walls, neighbours, then MoveIt IK and straight-line checks), and ranks the feasible grasps with a logistic model of grasp success trained on 320 simulated attempts collected in random order. On 40 held-out scenes the learned ranking succeeded on 198 of 203 attempts against 195 of 212 for the hand-designed score on the same scenes (paired difference +5.6 points, bootstrap 95 % interval +2.2 to +9.2), deposited 199 of 200 objects against 195, with 0 executed states in collision and every detected failure followed by an autonomous recovery (56 of 56 in all phase 5 runs). The phase 4 cell, which leaves unknown objects alone, deposits 128 of those 200 (`docs/experiments.md` E-005, which also reports the failures and the limits). Known limits: objects separate, never touching or piled; top-down grasps only, so an object close to a wall on the side the fingers close from is left; the ranking orders feasible grasps and cannot refuse one, so when the only feasible grasp is a bad one it is still tried; these scenes have one dominant failure mode, which the model found from data but a hand rule could also encode once known. Phase 4: 99/100 objects on 20 seeded scenes of upright objects, 0 collisions (E-004). Earlier phases: camera-driven pick of one object 28/30 with a geometric perception pipeline at 0.2 mm median error in simulation (E-003), 30/30 pick-and-place cycles at known poses (E-002), 10/10 collision-free reach goals (E-001).
+> Status: **phase 5, AI and robustness, is closed; phase 6, multi-arm cells, is next** (ideas in `docs/ideas.md`). The cell empties on its own an input bin holding five cubes, cylinders and prisms at random poses, now including cylinders lying on their side and prisms standing on an end face, which its geometric perception does not recognise. It grasps those as clusters of unknown shape through the same hard filters (gripper geometry, walls, neighbours, then MoveIt IK and straight-line checks), and ranks the feasible grasps with a logistic model of grasp success trained on 320 simulated attempts collected in random order. On 40 held-out scenes the learned ranking succeeded on 198 of 203 attempts against 195 of 212 for the hand-designed score on the same scenes (paired difference +5.6 points, bootstrap 95 % interval +2.2 to +9.2), deposited 199 of 200 objects against 195, with 0 executed states in collision and every detected failure followed by an autonomous recovery (56 of 56 in all phase 5 runs). The phase 4 cell, which leaves unknown objects alone, deposits 128 of those 200 (`docs/experiments.md` E-005, which also reports the failures and the limits). Known limits: objects separate, never touching or piled; top-down grasps only, so an object close to a wall on the side the fingers close from is left; the ranking orders feasible grasps and cannot refuse one, so when the only feasible grasp is a bad one it is still tried; these scenes have one dominant failure mode, which the model found from data but a hand rule could also encode once known. Phase 4: 99/100 objects on 20 seeded scenes of upright objects, 0 collisions (E-004). Earlier phases: camera-driven pick of one object 28/30 with a geometric perception pipeline at 0.2 mm median error in simulation (E-003), 30/30 pick-and-place cycles at known poses (E-002), 10/10 collision-free reach goals (E-001).
 
 ## Roadmap
 
@@ -16,7 +16,8 @@ The first deliverable is an **autonomous random bin-picking cell**; it is design
 | 3 | Camera and 3D perception | Camera-driven object selection, documented calibration and frames |
 | 4 | Random bin picking | Autonomous MVP with metrics |
 | 5 | AI and robustness | Baseline vs learned grasp scoring, recovery, quantitative experiments |
-| 6 | Factory expansion | Conveyor, inspection, scheduling, second robot |
+| 6 | Multi-arm cells | N arms passing objects around a loop of conveyors, then one arm scrambling a Rubik's cube and another solving it (`docs/ideas.md`) |
+| later | Factory expansion | Conveyor-fed line, inspection, scheduling |
 
 Each phase is gated by a stable, measured previous phase.
 
@@ -40,6 +41,7 @@ Each phase is gated by a stable, measured previous phase.
 | `docs/decisions.md` | Stack and design decisions with rationale |
 | `docs/experiments.md` | Trials, benchmarks, results |
 | `docs/environment.md` | Audited environment and setup |
+| `docs/ideas.md` | Ideas for the next phases, before they have a plan |
 
 ## Setup
 

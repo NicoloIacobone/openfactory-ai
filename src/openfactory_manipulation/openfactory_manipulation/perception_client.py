@@ -6,10 +6,13 @@ Manipulation consumes hypotheses only; it never reads camera data or simulator s
 import time
 
 import rclpy
+from rclpy.duration import Duration
 from rclpy.time import Time
 from vision_msgs.msg import Detection3DArray
 
 from . import constants as c
+
+WALL_LIMIT = 10        # wall-clock limit of a wait, as a multiple of its timeout on the node clock
 
 
 def hypotheses_from_msg(msg):
@@ -45,9 +48,18 @@ class PerceptionClient:
 
     def wait_fresh(self, after, timeout_s):
         """Hypotheses of the first view stamped later than `after` (rclpy Time), spinning the
-        node meanwhile: (hypotheses, stamp in seconds), or None on timeout."""
-        end = time.monotonic() + timeout_s
-        while time.monotonic() < end:
+        node meanwhile: (hypotheses, stamp in seconds), or None on timeout.
+
+        `timeout_s` is counted on the node's clock, the clock of the image stamps: a
+        simulation that runs slower than real time gets the same number of frames to deliver
+        a view (with three cameras the VM runs at half speed and a view once took more than
+        10 s of wall time, E-006). A wall-clock limit of WALL_LIMIT times that still ends the
+        wait if the clock stops.
+        """
+        clock = self.node.get_clock()
+        deadline = clock.now() + Duration(seconds=timeout_s)
+        end = time.monotonic() + WALL_LIMIT * timeout_s
+        while clock.now() < deadline and time.monotonic() < end:
             msg = self.latest
             if msg is not None and Time.from_msg(msg.header.stamp) > after:
                 stamp = msg.header.stamp

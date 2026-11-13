@@ -8,7 +8,7 @@ Candidate goals for the phases after 5, written down before any plan. An idea be
 
 - Conveyors that carry the objects between the arms, instead of a bin shared by two neighbours.
 - Arms moving at the same time. In the ring only arms that share no bin could (never with N = 2 or 3, whose arms all share one); it needs execution outside `move_group`'s single `ExecuteTrajectory`, and either plans checked against the other arm's trajectory or work zones that an arm must own before it enters them.
-- A lighter perception for large N: one process per bin costs about 270 MB (`docs/environment.md`); one node serving every camera, or rendering a camera only when its bin is looked at, would let N grow on this VM.
+- A lighter ring for large N. What limits N on this VM is not the arms but the Python nodes: each one handles the 800 Hz `/clock` and takes about a third of a core doing nothing else, and each bin adds two of them and 270 MB (`docs/environment.md`, "Phase 6 ring"): the simulation runs at 0.7 of real time with N = 2, 0.5 with N = 3, 0.3 with N = 4. Two ways out, neither tried: one perception process and one depth-model process serving every camera, or a `/clock` bridged at a lower rate (Gazebo Transport can throttle a subscription, `ros_gz_bridge` 1.0.24 cannot). The second touches every node of the cell too and needs a decision entry.
 
 The idea as first written:
 

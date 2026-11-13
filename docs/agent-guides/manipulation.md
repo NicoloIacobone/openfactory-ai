@@ -40,7 +40,7 @@ pre-grasp → approach → close gripper → verify jaw opening → lift → (at
 ## Bin-picking loop
 
 - `ros2 run openfactory_manipulation bin_picking` empties the input bin; `BinPicking.step()` is one attempt, `reset()` starts a new scene and empties the planning-scene world.
-- Views are taken with the arm at ready only: perception sees whatever is in the bin volume.
+- Views are taken with the arm at ready only: perception sees whatever is in the bin volume. The wait for a view (`perception.timeout_s`) runs on the node's clock, not on wall time: the simulation may run slower than real time (E-006).
 - A held prism can swing between the pads (D-015); do not raise its grasp.
 - `unknown` clusters are tried only with `selection.unknown_grasps` (on by default since E-005); their width is measured, so the jaw checks use `selection.unknown_width_tolerance`. A standing prism held across the long side of its footprint is a wedge and slips out; across the short side it holds (D-018).
 - `pick_place_once` (object at a known pose, D-009) and `pick_perceived_once` (most confident hypothesis, D-013) run single cycles for debugging.

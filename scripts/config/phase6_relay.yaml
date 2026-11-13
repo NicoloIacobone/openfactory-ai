@@ -14,6 +14,10 @@ scene:                          # randomize_scene.sample_scene, once per bin (in
 sets:                           # disjoint seeds
   dev: {seed: 6000, handovers: 20}
   eval: {seed: 61, handovers: 100}
+  # Added after the first run on `eval` with three arms stopped for a view that did not come in
+  # time (E-006; the fix is a timeout, nothing about the scenes): objects no code change has
+  # seen, same thresholds.
+  confirm: {seed: 62, handovers: 100}
 
 pick_place_config: null         # null: openfactory_manipulation/config/pick_place.yaml
 

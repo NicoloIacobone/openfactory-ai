@@ -7,5 +7,7 @@ table_margin: 0.15        # the round table reaches this far beyond the arm base
                           # table edge is 0.15 m behind its robot base)
 floor_margin: 1.0         # MoveIt's floor collision box reaches this far beyond the table
 
-camera_rate_hz: null      # null: the rate of camera.yaml; a lower rate saves CPU with many
-                          # cameras (views are taken with every arm at rest)
+camera_rate_hz: null      # null: the rate of camera.yaml. A lower rate does not buy CPU:
+                          # measured at 2 Hz with three cameras, the perception and depth-model
+                          # nodes use what they use at 5 Hz, because their load is the 800 Hz
+                          # /clock that every Python node handles (docs/environment.md)

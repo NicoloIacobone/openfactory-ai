@@ -27,3 +27,12 @@ Needs more thought before any plan. Hard parts known so far:
 - State from the camera: sticker colours on six faces, of which one fixed view sees at most three. Ogre 1 renders flat-shaded colour (D-005), which may be enough to tell six colours apart.
 - Solver: the `doppelbot` project already scans a real cube and solves it with `kociemba` (a pip package, not apt); a new dependency needs a decision entry.
 - The simulator's cube state is ground truth: evaluation only (rule 5).
+
+## 3. Robot catalog (when an idea needs a different robot)
+
+A workshop where robot types are tried and the ones that work are kept in an inventory, so that later ideas can pick from what is available, including odd mixes.
+
+- A robot (arm + gripper + MoveIt configuration) enters the catalog only after a standard qualification test, the same for all: a reach test like E-001 and a pick-and-place test like E-002. Its results are recorded in `docs/experiments.md`, like any other result.
+- What is available: on Jazzy aarch64 only the UR family has a full apt stack. The installed `ur_description` has 14 models (ur3 to ur30, e-series included), and the cell xacro already takes a `ur_type` argument (default `ur5e`). Franka has no apt package (`docs/environment.md`); other brands need checking one by one. So the catalog would start with UR variants and different grippers.
+- Limits: the qualification runs one robot at a time, because the 3.8 GB VM holds one cell with a camera. Several agents could write configurations in parallel, but their tests queue on the same VM; truly parallel tests need another machine. A UR variant changes parameters (reach, ready joints, bin layout); another brand is a whole new description, MoveIt configuration and controller set.
+- When: after the relay loop, which needs N identical UR5e arms and no catalog. A light first step is a cell parametric on `ur_type` with ur3e and ur10e qualified; a full workshop only when an idea needs a robot the catalog does not have (for example the Rubik's cube pair).

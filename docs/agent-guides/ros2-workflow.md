@@ -8,7 +8,7 @@ Applies when a task creates or changes packages, nodes, launch files, parameters
 
   | Package | Holds |
   |---|---|
-  | `openfactory_description` | URDF/Xacro, meshes references, static robot config |
+  | `openfactory_description` | URDF/Xacro, meshes references, static robot config; Python module `ring` (layout and names of the ring of N arms) |
   | `openfactory_simulation` | worlds, object models, sensors, randomization, simulation launch |
   | `openfactory_moveit_config` | planning groups, kinematics, controllers, collision config |
   | `openfactory_perception` | RGB-D processing, point clouds, segmentation, pose estimation |
@@ -34,6 +34,7 @@ Applies when a task creates or changes packages, nodes, launch files, parameters
 - `use_sim_time: true` on every node when the simulator runs; the `/clock` bridge must exist before nodes that use time.
 - Each package exposes its own launch files; `openfactory_bringup` includes them. Launch arguments for anything that varies between runs (seed, world, headless, rviz).
 - Long-running launches run detached in the VM with their output in `~/<name>.log` (`docs/environment.md`, "Operating the VM over SSH").
+- A launch whose nodes depend on a number (the N arms of the ring) resolves it in an `OpaqueFunction` and generates the per-N files there (`ring_simulation.launch.py`, `ring_move_group.launch.py`).
 
 ## TF and frames
 

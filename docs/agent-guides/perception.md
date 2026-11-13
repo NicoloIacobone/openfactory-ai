@@ -26,6 +26,8 @@ Applies when a task touches the camera, calibration, depth or point-cloud proces
 
 Each step is a pure function in `openfactory_perception/core` with pytest tests on synthetic views. The pipeline sees whatever is in the bin volume, the arm included: consumers take views with the arm at ready.
 
+The bin is the node parameter `bin_frame` (default `input_bin`). In the ring of N arms (phase 6) `ring_perception.launch.py` starts one node per bin in the namespace `/bin_<k>`, with `bin_frame: bin_<k>` and the topics of `constants.TOPICS` remapped into it; every bin has the inner size of the cell's input bin and the camera of the cell above it, so the calibration of E-003 holds.
+
 ## Learned perception
 
 - Only after the geometric baseline is measured on the same task (for the bin: E-003, E-004).

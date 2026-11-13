@@ -15,6 +15,14 @@ Gazebo Harmonic (Sim 8.15) through `ros-jazzy-ros-gz`, with the Ogre 1 render en
 - `openfactory_simulation/launch/simulation.launch.py`: arguments `world`, `headless`, `camera`, `depth_noise`, `seed` (seed of the depth noise).
 - Sensor models between the bridge and perception, pure logic with pytest: `depth_noise.py`, node `scripts/depth_sensor_model.py` (D-011).
 
+## Ring of N arms (phase 6, D-020)
+
+- `ring_simulation.launch.py n:=N` (and `openfactory_bringup ring.launch.py`) starts N arms as one Gazebo model with `self_collide` next to the fixtures model (round table, one bin and one camera per arm). The world file is the cell's.
+- Layout, controllers and bridge mappings of one N are generated at launch into `/tmp/openfactory_ring/n<N>/` (`openfactory_description/ring.py`, `openfactory_simulation/ring_config.py`) from `cell.yaml`, `ring.yaml` and the cell's `ros2_controllers.yaml` and `bridge.yaml`. Change the sources, never the generated files; write generated YAML with `ring.dump_yaml` (no anchors: `rcl` refuses them).
+- Names: `arm_<i>_` prefixes links, joints and controllers; `/bin_<k>/camera/...` are the camera topics; one `depth_sensor_model` per camera in `/bin_<k>`.
+- Objects for the ring are spawned by `scripts/relay_benchmark.py` (`relay_eval.spawn_pose`: bins are rotated about z); `gz_scene.py spawn` and `randomize_scene.py --spawn` know only the cell's two bins.
+- Start it detached with `scripts/vm/launch.sh`, stop it with `scripts/vm/stop_cell.sh` (`docs/environment.md`).
+
 ## Integration
 
 - Robot control through `gz_ros2_control` and standard controllers (joint trajectory controller, gripper controller); never set joint positions directly.

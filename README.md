@@ -6,7 +6,7 @@ The first deliverable, an **autonomous random bin-picking cell**, is done. Next 
 
 ## Status
 
-**Phase 5, AI and robustness, is closed; phase 6, multi-arm cells, is next.**
+**Phase 5, AI and robustness, is closed; phase 6, multi-arm cells, is in progress:** the relay loop runs as a ring of N arms and N bins, N chosen at launch (`docs/architecture.md`, "Ring of N arms"); its closing test is E-006.
 
 A UR5e with a parallel-jaw gripper empties on its own an input bin holding five cubes, cylinders and prisms at random poses, including cylinders lying on their side and prisms standing on an end face, which its geometric perception does not recognise. It grasps those as clusters of unknown shape through the same hard filters (gripper geometry, walls, neighbours, then MoveIt IK and straight-line checks), and ranks the feasible grasps with a logistic model of grasp success trained on 320 simulated attempts.
 
@@ -38,7 +38,7 @@ Known limits:
 | 3 | Camera and 3D perception | Camera-driven object selection, documented calibration and frames |
 | 4 | Random bin picking | Autonomous MVP with metrics |
 | 5 | AI and robustness | Baseline vs learned grasp scoring, recovery, quantitative experiments |
-| 6 | Multi-arm cells | N arms passing objects around a loop of conveyors, then one arm scrambling a Rubik's cube and another solving it (`docs/ideas.md`) |
+| 6 | Multi-arm cells | N arms passing objects around a ring of bins (conveyors later), then one arm scrambling a Rubik's cube and another solving it (`docs/ideas.md`) |
 | later | Factory expansion | Conveyor-fed line, inspection, scheduling |
 
 Each phase is gated by a stable, measured previous phase.
@@ -57,7 +57,7 @@ Each phase is gated by a stable, measured previous phase.
 | Path | Contents |
 |---|---|
 | `src/` | ROS 2 packages `openfactory_*` (description, simulation, moveit_config, perception, manipulation, bringup) |
-| `scripts/` | Scene randomization, benchmark runners, ground-truth evaluation, training of the learned ranking; `scripts/vm/` runs benchmarks detached in the VM |
+| `scripts/` | Scene randomization, benchmark runners, ground-truth evaluation, training of the learned ranking; `scripts/vm/` launches, stops and benchmarks detached in the VM |
 | `tests/` | Pure-logic tests of the scripts |
 | `docs/architecture.md` | Components, interfaces, frames |
 | `docs/decisions.md` | Stack and design decisions with rationale |
@@ -93,6 +93,13 @@ ros2 run openfactory_manipulation bin_picking
 
 # Benchmark: seeded scenes through the cell's own loop, judged from ground truth (E-005 evaluation set)
 python3 <repo>/scripts/benchmark.py --config <repo>/scripts/config/phase5_tumbled.yaml --set eval --strategy learned
+```
+
+```bash
+# Ring of N arms (phase 6): arm i picks from bin i and places into bin (i + 1) mod N, one arm at a time
+ros2 launch openfactory_bringup ring.launch.py n:=3 rviz:=false
+python3 <repo>/scripts/relay_benchmark.py --arms 3 --set dev    # spawns seeded objects in every bin, runs 20 handovers, judges from ground truth
+ros2 run openfactory_manipulation relay --arms 3                # the loop alone, for ever, on objects already in the bins
 ```
 
 The commands that reproduce each phase's results are in `docs/experiments.md` (E-001 to E-005). The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.

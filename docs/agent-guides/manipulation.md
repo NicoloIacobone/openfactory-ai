@@ -44,3 +44,12 @@ pre-grasp → approach → close gripper → verify jaw opening → lift → (at
 - A held prism can swing between the pads (D-015); do not raise its grasp.
 - `unknown` clusters are tried only with `selection.unknown_grasps` (on by default since E-005); their width is measured, so the jaw checks use `selection.unknown_width_tolerance`. A standing prism held across the long side of its footprint is a wedge and slips out; across the short side it holds (D-018).
 - `pick_place_once` (object at a known pose, D-009) and `pick_perceived_once` (most confident hypothesis, D-013) run single cycles for debugging.
+
+## Relay loop of the ring (phase 6, D-021)
+
+- `ros2 run openfactory_manipulation relay --arms N [--handovers K]` with `ring.launch.py n:=N` running. `RelayLoop.step()` is one turn, `reset()` parks every arm and empties the planning-scene world.
+- An arm is driven through its `ArmNames` (`names.py`: `CELL`, `ring_arm(i)`): never write `c.ARM_GROUP`, `c.TOOL_LINK` or a joint name in code that an arm of the ring may run; use `moveit.names`. `MoveItInterface.for_arm` shares the node, TF, joint states and world ids between arms.
+- One arm moves at a time; the others are at `relay.park_joints`. Do not send two arms to `ready_joints`: with N = 2 they meet at the centre of the ring (MoveIt refuses the second plan, and the simulator stops them).
+- Place points and obstacles of the destination bin come from its view (`core/relay.free_slots`, `RelayLoop._destination`), not from memory. A handover needs the pick verified and the object seen at its place point (`object_not_arrived`).
+- The object that waited longest in the source bin goes first (`core/relay.waiting_since`, passed to `grasp_selector.select` as `priority`): an order between objects set by the task, before the ranking. It must stay an order, never a filter.
+- Loop end reasons: `handovers_done`, `no_work`, `failure_budget`, `park_failed`, `no_view` (`core/relay.py`).

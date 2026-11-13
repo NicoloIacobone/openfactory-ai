@@ -14,7 +14,7 @@ OpenFactory AI is a ROS 2 digital twin of a robotic cell that perceives a changi
 | 3 | RGB-D camera, TF, calibration, geometric perception | closed 2026-11-11: E-003 (calibration, perception 79/79, camera-driven pick 28/30), D-011–D-013 |
 | 4 | Random bin picking MVP with metrics | closed 2026-11-11: E-004 (99/100 objects on the evaluation seed, 99/100 and 97/100 on two confirmation seeds, 0 collisions), D-014–D-017 |
 | 5 | AI and robustness: learned ranking vs baseline, recovery | closed 2026-11-12: E-005 (tumbled objects; learned ranking 198/203 vs baseline 195/212 on 40 held-out scenes, 199/200 objects, recovery 56/56, 0 collisions), D-018–D-019 |
-| 6 | Multi-arm cells: N-arm relay loop, then a Rubik's cube scramble/solve pair (`docs/ideas.md`) | next, no plan yet |
+| 6 | Multi-arm cells: N-arm relay loop, then a Rubik's cube scramble/solve pair (`docs/ideas.md`) | in progress: relay loop built as a ring of N arms and N bins (D-020, D-021), closing test E-006 to run; Rubik pair not started |
 
 A phase starts only after the previous one is closed, and closes only when its measurable test passes. When that happens, propose updating this table and `README.md`.
 
@@ -36,7 +36,7 @@ A phase starts only after the previous one is closed, and closes only when its m
 | VM (UTM 5.0.8, Ubuntu 24.04 aarch64, 3.8 GB RAM, 4 cores) | ROS 2 Jazzy, colcon, simulator, RViz. Same VM as the `doppelbot` project; SSH alias `doppelvm`. |
 
 - **Audit before changing.** The stack in `docs/environment.md` is chosen from evidence. Before installing or changing anything in the VM, read it; if the environment looks different, re-audit and update it. Never install, upgrade or migrate only to match a document. Never propose an Ubuntu release upgrade or a ROS distro migration.
-- **Memory is the main constraint.** As few arms as the task needs, small world, primitive objects, downsampled point clouds, headless simulator when the GUI is not needed, RViz only when needed. Measure RAM whenever an arm or a camera is added. No heavy model training locally; keep batch benchmarks separate from interactive simulation. Prefer binary apt packages to source builds of large stacks.
+- **Memory is the main constraint.** As few arms as the task needs (each bin of the ring costs about 270 MB for its camera pipeline), small world, primitive objects, downsampled point clouds, headless simulator when the GUI is not needed, RViz only when needed. Measure RAM whenever an arm or a camera is added. No heavy model training locally; keep batch benchmarks separate from interactive simulation. Prefer binary apt packages to source builds of large stacks.
 - `ros2`, `colcon`, `apt`, `gz` and `rviz2` run only in the VM. Git runs only on the Mac.
 - The repo lives on the Mac in `~/Desktop/nico/github_portfolio/ros_2_projects/openfactory-ai`. The VM mounts the UTM share `ros_2_projects` at `/mnt/ros_2_projects`; `/mnt/openfactory-ai` is a symlink into it. Details: `docs/environment.md`, "Repo access from the VM".
 
@@ -46,7 +46,7 @@ A phase starts only after the previous one is closed, and closes only when its m
 ssh doppelvm 'source /opt/ros/jazzy/setup.bash && <command>'
 ```
 
-`source` is always explicit: a non-interactive shell does not load `.bashrc`. Long-running programs (the cell, benchmarks) run detached with their output in `~/<name>.log`; benchmarks through `scripts/vm/run_benchmark.sh` and `run_chain.sh`. How to launch them, the display variables the camera needs, and the traps of driving the VM over SSH: `docs/environment.md`, "Operating the VM over SSH".
+`source` is always explicit: a non-interactive shell does not load `.bashrc`. Long-running programs (the cell, benchmarks) run detached with their output in `~/<name>.log`: launches through `scripts/vm/launch.sh` (stopped with `stop_cell.sh`), benchmarks through `scripts/vm/run_benchmark.sh` and `run_chain.sh`. How to launch them, the display variables the camera needs, and the traps of driving the VM over SSH: `docs/environment.md`, "Operating the VM over SSH".
 
 ## Working with the user
 
@@ -78,6 +78,8 @@ cd /mnt/openfactory-ai && python3 -m pytest -q -p no:cacheprovider tests
 ## Architecture in brief
 
 Loop: RGB-D camera + robot state → `scene_perception` → `grasp_selector` → `task_planner` / MoveIt 2 → `robot_executor` → `scene_manager` (verify, update, recover) → back to perception. Components, interfaces and frames: `docs/architecture.md`.
+
+Two systems share the packages: the single-arm cell (`cell.launch.py`, phases 1–5) and the ring of N arms built from it (`ring.launch.py n:=N`, phase 6: arm *i* picks from bin *i* and places into bin *(i + 1) mod N*, one arm at a time). A change to shared code must leave both working; names of an arm come from `ArmNames`, never from a constant, in code the ring may run.
 
 - Packages under `src/` named `openfactory_<role>` (`description`, `simulation`, `moveit_config`, `perception`, `manipulation`, `bringup`). Create a package only when a concrete responsibility needs it.
 - Standard messages first (`sensor_msgs`, `geometry_msgs`, `moveit_msgs`, `vision_msgs`). A custom `openfactory_interfaces` package only for a stable interface, after approval.

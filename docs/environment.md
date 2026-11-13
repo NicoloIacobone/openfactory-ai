@@ -17,6 +17,8 @@ The current state of the Mac and the VM first, then the dated log of audits, ins
 
 Memory with the full cell (Gazebo server with the camera, MoveIt, depth model, perception, benchmark harness, GNOME session; no RViz): 1.5 GiB used, 2.4 GiB available, real-time factor ≈ 1.0, load average 3–4 on 4 cores (phase 5). RViz adds about 260 MB, the Gazebo GUI about 400 MB. Idle VM: 1.0 GiB used.
 
+Ring of N arms (phase 6; Gazebo server with N cameras, one `move_group`, N depth models, N perceptions, GNOME session; no RViz): N = 2, 1.7 GiB used, 2.1 GiB available, real-time factor 1.0; N = 3, 1.8–1.9 GiB used, 1.9–2.0 GiB available, real-time factor about 0.9. Each bin costs about 270 MB (perception 180–195 MB, depth model 80 MB) and about 0.6 of a core; an arm without its camera costs little. Details in the log, "Phase 6 ring".
+
 ### Stack
 
 | Area | Choice | Why |
@@ -54,11 +56,13 @@ The assistant drives the VM from the Mac with full control (`CLAUDE.md`, "Enviro
 
 - One-shot commands: `ssh doppelvm 'source /opt/ros/jazzy/setup.bash && source ~/openfactory_ws/install/setup.bash && <command>'`. A non-interactive shell loads neither ROS nor `.bashrc`.
 - The cell with the camera needs the VM desktop display even with `headless:=true` (D-005). Over SSH, set `DISPLAY=:0 XAUTHORITY=$(ls /run/user/$(id -u)/.mutter-Xwaylandauth.* | head -1)`. `camera:=false perception:=false` runs without a display.
-- Long-running programs run detached, so that the SSH session can end: `setsid nohup ros2 launch openfactory_bringup cell.launch.py headless:=true rviz:=false > ~/cell.log 2>&1 < /dev/null &`, inside the sourced command above and with the display variables.
-- A detached `setsid nohup python3 ...` does not inherit the sourced ROS environment (`No module named 'rclpy'`). Benchmarks go through `scripts/vm/run_benchmark.sh NAME <benchmark args>`, which sources ROS and the workspace, writes `~/NAME.log` and the exit code to `~/NAME.done`; `scripts/vm/run_chain.sh CHAIN "NAME|args" ...` runs several in a row (`~/CHAIN.progress`, `~/CHAIN.done`). Wait on the `.done` file.
+- Long-running programs run detached, so that the SSH session can end: `setsid nohup ros2 launch openfactory_bringup cell.launch.py headless:=true rviz:=false > ~/cell.log 2>&1 < /dev/null &`, inside the sourced command above and with the display variables. `scripts/vm/launch.sh NAME <ros2 launch arguments>` does the sourcing and the display variables and writes `~/NAME.log`: `ssh doppelvm 'setsid nohup /mnt/openfactory-ai/scripts/vm/launch.sh ring openfactory_bringup ring.launch.py n:=2 rviz:=false > /dev/null 2>&1 < /dev/null &'`.
+- Stop a cell or a ring with `ssh doppelvm /mnt/openfactory-ai/scripts/vm/stop_cell.sh`: it ends the launch and kills what it leaves behind. A detached launch ignores `kill -INT` (a background job of a non-interactive shell starts with SIGINT ignored), and after `kill <launch pid>` Gazebo, the bridge and `robot_state_publisher` can stay.
+- A detached `setsid nohup python3 ...` does not inherit the sourced ROS environment (`No module named 'rclpy'`). Benchmarks go through `scripts/vm/run_benchmark.sh NAME [--script FILE] <benchmark args>`, which sources ROS and the workspace, runs `scripts/benchmark.py` (or `FILE`, e.g. `relay_benchmark.py`), writes `~/NAME.log` and the exit code to `~/NAME.done`; `scripts/vm/run_chain.sh CHAIN "NAME|args" ...` runs several in a row (`~/CHAIN.progress`, `~/CHAIN.done`). Wait on the `.done` file.
 - Before a run, check that the cell is up (`ps -eo pid,etimes,comm | grep -E 'gz|move_group'`): the VM may have been restarted between sessions. Nodes read their YAML at start: after a config or code change, rebuild and relaunch the cell.
-- Stop processes by PID (`kill <pid>`). Never use `pkill -f` or `pgrep -f` with a pattern inside `ssh doppelvm '...'`: the pattern matches the remote shell's own command line, so `pkill` kills the SSH session (exit 255) and `pgrep` always finds a match.
-- A launch that aborts leaves `gz sim` and the `spawner` processes orphaned; kill them before relaunching.
+- Stop other processes by PID (`kill <pid>`). Never use `pkill -f` or `pgrep -f` with a pattern inside `ssh doppelvm '...'` (a script file such as `stop_cell.sh` may): the pattern matches the remote shell's own command line, so `pkill` kills the SSH session (exit 255) and `pgrep` always finds a match.
+- A launch that aborts leaves `gz sim` and the `spawner` processes orphaned; kill them before relaunching (`stop_cell.sh`).
+- The `ros2 control` command line is not installed (`ros2controlcli`); list controllers with `ros2 service call /controller_manager/list_controllers controller_manager_msgs/srv/ListControllers`.
 - `move_group` keeps the planning-scene objects of a process that ended. The bin-picking loop empties the world at every scene (D-017); other scripts must do the same.
 - Reading Gazebo's `/world/cell/dynamic_pose/info` (about 1 kHz) continuously from Python starves the process; sample it a few times per second (`GzScene.model_poses` from a thread).
 - The VM clock differs from the Mac's: compare elapsed times (`ps -o etimes`), not wall times.
@@ -232,3 +236,14 @@ No package installed. The learned grasp ranking is trained with NumPy 1.26.4 (`s
 ### Check — 2026-11-13
 
 No package installed. Versions, kernel, disk and the installed apt packages are as in "Current state"; idle VM with no cell running: 1.0 GiB used, 2.8 GiB available. The benchmark runners used for the phase 5 runs (`~/p5_run.sh`, `~/p5_chain.sh`, VM only) are now versioned as `scripts/vm/run_benchmark.sh` and `scripts/vm/run_chain.sh` and run from the share (checked: ROS sourced, exit codes recorded, chain progress written).
+
+### Phase 6 ring — 2026-11-13
+
+No package installed. The ring of N arms (D-020) uses what the cell uses: `gz_ros2_control` 1.2.20 with several `ros2_control` systems in one model, one `move_group`, `xacro`, `ament_cmake_python`. `joint_state_publisher` is installed and not needed (one joint state broadcaster for every arm).
+
+- `ring_simulation.launch.py n:=2 camera:=false` (no display needed): `joint_state_broadcaster` and a trajectory and a gripper controller per arm active; real-time factor 1.00; `gz sim` 245 MB; 1.2–1.3 GiB used.
+- `self_collide` on the model of the arms: two arms sent into each other through their controllers stop each other (D-020); no spurious contact in the upright and ready configurations, fingers close fully.
+- `ring.launch.py n:=2 rviz:=false` on the VM display: both perceptions publish at 2.5–3.5 Hz, real-time factor 1.00, 1.7 GiB used, 2.1 GiB available. Resident: `gz sim` 373 MB, `scene_perception` 178 MB each, `move_group` 98 MB, `depth_sensor_model` 80 MB each.
+- `ring.launch.py n:=3 rviz:=false`: seven controllers active, three perceptions at 2.0–3.9 Hz, real-time factor 0.88–0.93 at rest, 1.8 GiB used and 2.0 GiB available (1.9 and 1.9 during a benchmark), load average above 7 on 4 cores. Resident: `gz sim` 414 MB, `scene_perception` 179–197 MB each, `move_group` 105 MB, `depth_sensor_model` 81 MB each. CPU: `gz sim` 108 %, each perception 33–35 %, each depth model 25 %, `move_group` 20 %.
+- A turn of the relay loop takes about 28–30 s of wall time with N = 2 and about 40 s with N = 3 (same simulated work, slower simulation).
+- Traps met: `rcl` refuses a generated parameter file with YAML anchors; a detached launch ignores SIGINT; `ros2 control` is not installed. All three are in "Operating the VM over SSH".

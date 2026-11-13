@@ -1,6 +1,6 @@
 # Architecture
 
-Components, interfaces and frames of the cell as implemented through phase 5. A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
+Components, interfaces and frames of the single-arm cell as implemented through phase 5, and of the ring of N arms built from it in phase 6 ("Ring of N arms" below). A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
 
 ## System loop
 
@@ -112,3 +112,73 @@ The trial harness talks to Gazebo directly through Gazebo Transport (`scripts/gz
 Ground truth is not bridged to ROS (D-009): no ROS node can subscribe to it, so perception and manipulation cannot leak it. If a ROS ground-truth topic is ever needed for debugging, it lives under `/ground_truth/`. The ideal depth image (`/camera/depth/image_ideal`) is simulator data too: only the depth sensor model and the harness's calibration check read it. A pytest in `openfactory_perception` and one in `openfactory_manipulation` fail if a file of the package names ground truth, Gazebo transport, the bridge or (perception) the ideal depth topic.
 
 Scene randomization (`scripts/randomize_scene.py`) is seeded per scene from (seed, scene index); scenes hold separate objects resting in their catalog orientation, one to three in phase 3, five close to each other and to the walls in phase 4 (`scripts/config/phase4_bin_picking.yaml`); in phase 5 a cylinder may lie on its side and a prism stand on an end face (`tumbled_share`, `scripts/config/phase5_tumbled.yaml`, rest states in `scripts/scene_objects.py`). The benchmark harness (`scripts/benchmark.py`) reads ground truth after every attempt of the cell and judges it in `scripts/bin_picking_eval.py`; the cell's own verdict comes only from its fingers and its camera.
+
+## Ring of N arms
+
+Phase 6 (D-020, D-021). N UR5e arms and N bins on a round table: arm *i* picks from bin *i* and places into bin *(i + 1) mod N*, one arm at a time, for ever. It is a second system next to the single-arm cell, built from the same packages; the cell's launch, interfaces and frames above are unchanged.
+
+```
+ros2 launch openfactory_bringup ring.launch.py n:=3 rviz:=false
+ros2 run openfactory_manipulation relay --arms 3
+```
+
+### Layout
+
+Every arm sees its two bins exactly as the cell's arm sees `input_bin` and `output_bin`: 0.40 m in front of its base and 0.30 m to each side, the source on its right and the destination on its left. The two numbers are read from `cell.yaml` (`chord` = distance between the two bins = 0.60 m, `standoff` = base to the line that joins them = 0.40 m), so the ready configuration, the place points and the reach measured on the cell hold for every arm. Seen from above, with the ring centre at the world origin (`openfactory_description/ring.py`, pytest for N = 2 … 40):
+
+- the bins are the vertices of a regular N-gon of side `chord`: `r_bin = chord / (2 sin(π/N))`; bin *k* is at angle −2πk/N (the bins advance clockwise) with its frame x along the ring;
+- the arms stand outside it on the axis of each side, facing the centre: `r_arm = chord / (2 tan(π/N)) + standoff`;
+- the table is a disc of radius `r_arm + table_margin` (`ring.yaml`), 0.75 m high as in the cell; one camera hangs 0.70 m above each bin floor, image axes along the bin axes.
+
+N = 2 is the cell with a second arm facing the first across the two bins (bins at (±0.30, 0), arms at (0, ∓0.40)). Neighbouring bases are `chord cos(π/N) + 2 standoff sin(π/N)` apart: 0.80 m at N = 2, 0.99 m at N = 3 and 4, never less than `chord`. The geometry sets no upper limit on N; memory and CPU do (`docs/environment.md`).
+
+### One model, files generated per N
+
+One URDF (`ring.urdf.xacro`, robot `openfactory_ring`) holds every arm with the prefix `arm_<i>_`; one `move_group` plans each arm against all the others (planning group `arm_<i>_manipulator`), one `controller_manager` runs a trajectory and a gripper controller per arm. In Gazebo the arms are one model with `self_collide`, next to the fixtures model (`ring_fixtures.urdf.xacro`), so that arms stop each other physically too. xacro has no loops and the configuration files are per N, so a launch writes them to `/tmp/openfactory_ring/n<N>/` before starting anything; nothing there is a source:
+
+| File | Written by | From |
+|---|---|---|
+| `layout.yaml` (poses and names of arms, bins, cameras, table) | `openfactory_description/ring.py` | `cell.yaml`, `ring.yaml` |
+| `ros2_controllers.yaml`, `bridge.yaml` | `openfactory_simulation/ring_config.py` | the cell's `ros2_controllers.yaml` and `bridge.yaml` |
+| `ring.srdf`, `kinematics.yaml`, `joint_limits.yaml`, `moveit_controllers.yaml` | `openfactory_moveit_config/ring_config.py` | the cell's SRDF and `moveit_controllers.yaml`, `ur_moveit_config` |
+
+The xacro macros of the gripper, the bin and the camera take a prefix or a name and a pose; the cell URDF calls them with the old names. In the SRDF every arm keeps the collision matrix of the cell's arm; pairs of links of different arms stay enabled, except the fixed bases.
+
+### Components
+
+| Component | Implemented as | Notes |
+|---|---|---|
+| `scene_perception` | one node per bin, `/bin_<k>/scene_perception` (`ring_perception.launch.py`) | the cell's node with parameter `bin_frame: bin_<k>` and its topics remapped into `/bin_<k>` |
+| depth sensor model | one node per camera, `/bin_<k>/depth_sensor_model` | noise seed `1000 × seed + k` |
+| `grasp_selector`, `task_planner` + `robot_executor` | one `BinPicking` worker per arm inside `relay.RelayLoop`, all on one node | `MoveItInterface.for_arm` gives each worker its arm's names (`names.ring_arm`); TF, joint states and the planning-scene world are shared |
+| `scene_manager` | `openfactory_manipulation` library `relay.RelayLoop`, rules in `core/relay.py` | turns, place points, verification, parking |
+
+One turn (`RelayLoop.step`): with every arm parked, a view of every bin → the next arm round the ring whose source bin shows an object it may try and whose destination bin has a free place point → `BinPicking.step` for that arm (to ready, view of its source bin, planning scene, grasp selection, pick and place, view) → park → view of the destination bin.
+
+- **Parking.** Arms that are not working stand upright above their base (`relay.park_joints`, the UR `up` state and the start state in Gazebo). Only the working arm goes to `ready_joints`: with N = 2 that configuration puts both tools at the same point, the ring centre. So MoveIt checks every plan of the working arm against arms that do not move, and no arm is in a camera view while views are taken.
+- **Place points.** Every bin is observed, so nothing is remembered about the destination bin: a place point of `place.slots` is free when every object seen there is at least `relay.place_margin` from it (footprint circle to point), the roomiest first; the objects seen there enter the planning scene as obstacles (`dst_<k>`, grown by `place.obstacle_padding`) and MoveIt has the last word, as in the cell.
+- **Order of the objects.** An arm takes first the object that has been in its source bin longest (`core/relay.waiting_since`: the bin remembers the turn in which each handed-over object arrived, objects never handed over are the oldest); the grasp ranking orders the grasps within that. Every object goes round instead of one going back and forth.
+- **Verification.** A handover counts when the pick is verified as in the cell (finger checks, execution, object gone from the source bin) **and** the next view of the destination bin shows an object within `relay.arrival_radius` of the place point (`object_not_arrived` otherwise).
+- **Failures.** A failed grasp is not repeated while its object is still there; the memory of a bin is pruned when the object is gone. The loop ends with a reason: `handovers_done`, `no_work` (no arm has an object and a free place point), `failure_budget` (`relay.max_consecutive_failures` in a row), `park_failed`, `no_view`.
+
+### Interfaces and frames of the ring
+
+Those of the cell with a prefix or a namespace; types and semantics are unchanged.
+
+| Name | Cell equivalent | Notes |
+|---|---|---|
+| `/arm_<i>_joint_trajectory_controller/follow_joint_trajectory` | `/joint_trajectory_controller/follow_joint_trajectory` | one per arm; `move_group` picks the controller from the joints of the trajectory |
+| `/arm_<i>_gripper_controller/gripper_cmd` | `/gripper_controller/gripper_cmd` | one per arm |
+| `/joint_states`, `/robot_description`, `/move_action`, `/execute_trajectory`, `/compute_cartesian_path`, `/compute_ik`, `/apply_planning_scene`, `/clock` | the same | one of each for the whole ring; requests name the group `arm_<i>_manipulator` and the link `arm_<i>_tool0` |
+| `/bin_<k>/camera/camera_info`, `/bin_<k>/camera/color/image_raw`, `/bin_<k>/camera/depth/image_ideal`, `/bin_<k>/camera/depth/image_raw` | `/camera/...` | one camera per bin; the ideal depth is still simulator data that perception must not read |
+| `/bin_<k>/perception/objects`, `/bin_<k>/perception/debug/points`, `/bin_<k>/perception/debug/image` | `/perception/...` | hypotheses of bin *k*, frame `world` |
+
+| Frame | Parent | Notes |
+|---|---|---|
+| `world` | — | floor, z up; origin below the ring centre |
+| `table` | `world` | centre of the top surface of the round table |
+| `arm_<i>_base_link` … `arm_<i>_tool0`, `arm_<i>_gripper_palm`, `arm_<i>_left_finger`, `arm_<i>_right_finger`, `arm_<i>_gripper_tcp` | `world` → arm chain | the frames of the cell's arm with the prefix; base x points at the ring centre |
+| `bin_<k>` | `table` | centre of the inner floor of bin *k*, x along the ring |
+| `bin_<k>_camera_link`, `bin_<k>_camera_optical_frame` | `bin_<k>` | as `camera_link` and `camera_optical_frame` of the cell, above bin *k* |
+
+Ground truth is read as in the cell, by the harness only (`scripts/relay_benchmark.py`, judged in `scripts/relay_eval.py`): an object is where its pose falls inside the inner volume of a bin, on any face.

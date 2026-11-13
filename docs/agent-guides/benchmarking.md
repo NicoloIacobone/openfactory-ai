@@ -21,6 +21,8 @@ The log format lives in one pure module with tests (`scripts/trial_log.py`); eve
 | Collision rate | attempts with unsafe contact during approach, grasp, lift or place / attempts |
 | Planning failure rate | candidates rejected or failed in IK/planning / candidates evaluated |
 | Generalization | the metrics above on arrangements, occlusions, lighting or shapes not used for tuning |
+| Handover success (ring) | handovers whose object rests in the destination bin, reported by the cell, with no state in collision / handovers tried |
+| Objects lost (ring) | objects that end outside every bin |
 | Perception quality | instance/pose accuracy and confidence calibration, reported next to pick success |
 
 ## Fair comparisons
@@ -35,7 +37,8 @@ The log format lives in one pure module with tests (`scripts/trial_log.py`); eve
 - `scripts/benchmark.py [--config FILE] [--set NAME] [--strategy NAME]`: runs the seeded scenes of a set of the config (default `scripts/config/phase4_bin_picking.yaml`) through the cell's own loop, writes `attempts.jsonl`, `scenes.jsonl` and `summary.json`. Re-runnable, no manual steps. Ground-truth judgement in `scripts/bin_picking_eval.py` (pure, tested).
 - A config with `strategies` (`phase5_tumbled.yaml`) names benchmark strategies, each a combination of `unknown_grasps` and a `ranking.strategy`: `catalog_only` (phase 4 cell), `baseline`, `explore` (ranking `uniform_random`, for training data) and `learned`. Run ids are `<run_name>_<set>_<strategy>_...`. The benchmark name `explore` and the ranking name `uniform_random` are kept apart on purpose: renaming either would break the re-run commands and the config hash recorded in E-005.
 - `scripts/train_grasp_ranker.py RUN_DIR ... --out MODEL.json`: batch fit of the learned ranking (pure logic in `scripts/ranker_fit.py`, NumPy, scene-grouped cross-validation); refuses evaluation runs. `scripts/compare_strategies.py RUN_DIR ...`: strategies on the same scenes, Wilson intervals and a scene bootstrap of the paired differences.
-- In the VM, long runs go through `scripts/vm/run_benchmark.sh NAME <benchmark args>` (sources ROS, `~/NAME.log`, exit code in `~/NAME.done`) and `scripts/vm/run_chain.sh` for several in a row (`docs/environment.md`, "Operating the VM over SSH").
+- In the VM, long runs go through `scripts/vm/run_benchmark.sh NAME [--script FILE] <benchmark args>` (sources ROS, `~/NAME.log`, exit code in `~/NAME.done`) and `scripts/vm/run_chain.sh` for several in a row (`docs/environment.md`, "Operating the VM over SSH").
+- `scripts/relay_benchmark.py --arms N [--config FILE] [--set dev|eval] [--handovers K]`: the relay loop of the ring (E-006, default `scripts/config/phase6_relay.yaml`). Objects are spawned once in every bin (bin *k* holds scene *k* of the seed), then the ring works alone; writes `attempts.jsonl` (one record per handover tried, the trial-log format plus `arm`, `source_bin`, `destination_bin`, `arrival`), `turns.jsonl` (one per turn, skipped ones included), `scene.json`, `summary.json`. Ground-truth judgement in `scripts/relay_eval.py` (pure, tested). In the VM: `scripts/vm/run_benchmark.sh NAME --script relay_benchmark.py --arms N ...`. The launched ring must have the same N.
 - `scripts/randomize_scene.py`: see the simulation guide.
 - Results summary (tables, plots) in `docs/experiments.md` with the run id, commit, config and the command that re-runs it; raw logs stay in `data/`.
 

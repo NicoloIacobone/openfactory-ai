@@ -1,0 +1,35 @@
+# Phase 6 (E-006): relay loop of a ring of N arms. Arm i picks from bin i and places into bin
+# (i + 1) mod N, one arm at a time; the harness spawns seeded objects in every bin once, at the
+# start, and judges every handover from simulator ground truth.
+# Tuning uses `dev` only; `eval` is run with the code and the thresholds frozen. The same
+# config runs every N (relay_benchmark.py --arms N).
+run_name: phase6_relay
+strategy: relay_round_robin     # D-021: turns round the ring, place points from the view
+
+objects_per_bin: 3              # types drawn from the catalog by the seed, per bin
+scene:                          # randomize_scene.sample_scene, once per bin (index = bin)
+  wall_margin: 0.008            # m, footprint circle to the bin walls, as in phase 4
+  min_gap: 0.010                # m, between footprint circles: close, never touching
+
+sets:                           # disjoint seeds
+  dev: {seed: 6000, handovers: 20}
+  eval: {seed: 61, handovers: 100}
+
+pick_place_config: null         # null: openfactory_manipulation/config/pick_place.yaml
+
+evaluation:                     # as phase 4 (E-004)
+  settle_s: 1.0                 # after spawning and after every turn, before reading ground truth
+  rest_interval_s: 0.5          # between the two readings that tell whether an object is at rest
+  rest_motion_m: 0.001          # at rest: moved less than this between the two readings
+  spawn_tolerance_m: 0.005      # objects must rest this close to where they were spawned
+  max_tilt_rad: 0.1
+  disturbed_m: 0.005            # another object moved more than this during a turn
+  match_distance_m: 0.02        # the object the cell aimed at is within this of its target point
+  record_period_s: 0.1          # executed states of every arm, re-checked by MoveIt
+
+thresholds:                     # for N = 2 and N = 3 on `eval`, fixed before the runs
+  min_handover_success: 0.90    # handovers judged done by ground truth and by the cell / tried
+  max_invalid_states: 0         # executed states in collision for MoveIt, arm against arm included
+  max_objects_lost: 1           # objects that end outside every bin
+  max_undetected_failures: 3    # handovers the cell believes while ground truth disagrees
+  min_handovers_per_arm: 1      # every arm takes part

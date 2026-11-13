@@ -46,8 +46,9 @@ RECORDED_JOINTS = (*c.ARM_JOINTS, 'left_finger_joint', 'right_finger_joint')
 class StateRecorder:
     """Samples executed joint states from /joint_states on the node the cycle spins."""
 
-    def __init__(self, node, period_s):
+    def __init__(self, node, period_s, joints=RECORDED_JOINTS):
         self.period_s = period_s
+        self.joints = tuple(joints)
         self.states, self.active, self.last = [], False, 0.0
         self.sub = node.create_subscription(JointState, c.JOINT_STATES_TOPIC, self._on_state, 50)
 
@@ -58,8 +59,8 @@ class StateRecorder:
         if now - self.last < self.period_s:
             return
         positions = dict(zip(msg.name, msg.position))
-        if all(name in positions for name in RECORDED_JOINTS):
-            self.states.append([positions[name] for name in RECORDED_JOINTS])
+        if all(name in positions for name in self.joints):
+            self.states.append([positions[name] for name in self.joints])
             self.last = now
 
     def start(self):
@@ -70,17 +71,36 @@ class StateRecorder:
         return self.states
 
 
-def count_invalid(node, client, states):
+def count_invalid(node, client, states, joints=RECORDED_JOINTS, groups=(c.ARM_GROUP,),
+                  contacts=None):
+    """Recorded states that MoveIt finds in collision.
+
+    A state is checked once per planning group of `groups` (ring of N arms: one per arm) and
+    is invalid if any of them is: a group's check covers the pairs that involve its links, so
+    an arm against everything else, the other arms included. The whole robot is not checked
+    as one: the fixtures are robot links, and a planning-scene object next to a bin wall
+    would then count as a collision of the bin. `contacts`, if given, is a set that collects
+    the pairs of bodies in contact.
+    """
     invalid = 0
     for state in states:
-        request = GetStateValidity.Request(
-            group_name=c.ARM_GROUP,
-            robot_state=RobotState(joint_state=JointState(name=list(RECORDED_JOINTS),
-                                                          position=state)))
-        future = client.call_async(request)
-        rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
-        if not future.done() or not future.result().valid:
-            invalid += 1
+        robot_state = RobotState(joint_state=JointState(name=list(joints), position=state))
+        valid = True
+        for group in groups:
+            future = client.call_async(
+                GetStateValidity.Request(group_name=group, robot_state=robot_state))
+            rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
+            if not future.done():
+                valid = False
+                if contacts is not None:
+                    contacts.add(('no_answer', group))
+            elif not future.result().valid:
+                valid = False
+                if contacts is not None:
+                    contacts.update(tuple(sorted((contact.contact_body_1,
+                                                  contact.contact_body_2)))
+                                    for contact in future.result().contacts)
+        invalid += not valid
     return invalid
 
 

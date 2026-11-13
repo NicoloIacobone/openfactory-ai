@@ -1,6 +1,6 @@
 # Architecture
 
-Components, interfaces and frames. Everything here is **proposed** until the phase that implements it closes; changing an implemented interface needs explicit approval.
+Components, interfaces and frames of the cell as implemented through phase 5. A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
 
 ## System loop
 
@@ -18,28 +18,20 @@ Perception never commands joints. Simulator ground truth is consumed only by eva
 
 ## Components
 
-| Component | Package | Input | Output |
+| Component | Implemented as | Input | Output |
 |---|---|---|---|
-| `scene_perception` | `openfactory_perception` | RGB, depth, `camera_info`, TF | objects, segmentation, 3D poses, confidence |
-| `grasp_selector` | `openfactory_manipulation` | object poses/geometry, point cloud, robot state | ranked feasible grasp candidates |
-| `task_planner` | `openfactory_manipulation` | best grasp, destination bin, task state | MoveIt requests, next action |
-| `robot_executor` | `openfactory_manipulation` | trajectories, gripper commands | execution result, state |
-| `scene_manager` | `openfactory_manipulation` | prior state, perception update, action result | updated scene/task state, recovery request |
-| `factory_manager` | later | production goals, station states | task assignments (not in the MVP) |
+| `scene_perception` | node `openfactory_perception/scene_perception` | RGB, depth, `camera_info`, TF | object hypotheses: class or `unknown`, 3D pose, confidence |
+| `grasp_selector` | `openfactory_manipulation` library `grasp_selector.GraspSelector` | object hypotheses, robot state | ranked feasible grasp candidates |
+| `task_planner` + `robot_executor` | `openfactory_manipulation` library `pick_place.PickPlace` | chosen grasp, place point | MoveIt requests, trajectories, gripper commands, cycle result |
+| `scene_manager` | `openfactory_manipulation` library `bin_picking.BinPicking` | prior state, new view, cycle result | task state, next action, recovery |
+| `factory_manager` | later | production goals, station states | task assignments |
 
-Phase 2 implements `task_planner` and `robot_executor` as a library (`openfactory_manipulation.pick_place.PickPlace`, pure logic in `core/`) driven by the trial harness or `ros2 run openfactory_manipulation pick_place_once`; the object pose is the known-pose input of D-009, not a perception output.
+The libraries keep their logic in ROS-free modules under `core/` and run inside `ros2 run openfactory_manipulation bin_picking` or the benchmark harness.
 
-Phase 3 implements `scene_perception` as the node `openfactory_perception/scene_perception` (pure logic in `core/`: depth to points, bin crop and floor removal, top-view segmentation, model-based recognition of the catalog primitives, D-012). `grasp_selector` is not a component yet: `openfactory_manipulation.camera_pick` takes the most confident hypothesis and passes its type and pose to the same `PickPlace` cycle (`ros2 run openfactory_manipulation pick_perceived_once`, D-013); grasp candidates and feasibility ranking are phase 4.
-
-Phase 4 implements the other two as libraries of `openfactory_manipulation`, run by `ros2 run openfactory_manipulation bin_picking` or by the benchmark harness:
-
-- `grasp_selector` is `grasp_selector.GraspSelector` (pure logic in `core/grasps.py`, D-016): top-down candidates per hypothesis, hard filters (gripper width, fingers against the bin walls and the other objects, then MoveIt: collision-free IK above the grasp, approach line, lift line), and a baseline score on the survivors only. Every rejection is counted by reason.
-- `scene_manager` is `bin_picking.BinPicking` (pure logic in `core/task.py`, D-017). One step: view of the input bin with the arm at ready → every object of the view into the planning scene → grasp selection → `PickPlace.run_grasp` → next view, which verifies the pick (the object must be gone from the input bin) and feeds the next step. It keeps the task state of a scene: failed grasps that are not repeated, attempt budgets, the objects it placed and where. The loop ends with a reason (`bin_empty`, `no_feasible_grasp`, `only_unknown`, `output_full`, `attempt_budget`, `failure_budget`, `no_view`).
-
-Phase 5 extends both without new interfaces:
-
-- `grasp_selector` may also try `unknown` clusters (`selection.unknown_grasps`, D-018): top-down candidates across the long and the short side of the measured footprint, through the same hard filters; in the planning scene the cluster is the box of its footprint and height. A jaw-opening check against such a measured width uses `selection.unknown_width_tolerance`.
-- The survivors are ordered by a ranking strategy (`openfactory_manipulation/core/ranking.py`, `ranking.strategy`, D-019): `baseline` (D-016 score), `uniform_random` (seeded per scene, for data collection) or `learned` (logistic P(success) from pre-motion features, minus a motion term). The `learned` model is a JSON file in `openfactory_manipulation/config/` produced offline by `scripts/train_grasp_ranker.py` from training logs; the cell only reads it. Every candidate's features, prior, score and `p_success` go into the attempt log.
+- `scene_perception` (pure logic in `openfactory_perception/core`, D-012): depth to points, bin crop and floor removal, top-view segmentation, model-based recognition of the catalog primitives. A cluster that matches no catalog shape (for example a tumbled object) is published as `unknown` with its footprint and measured height.
+- `grasp_selector` (`core/grasps.py`, `core/ranking.py`; D-016, D-018, D-019): top-down candidates for catalog hypotheses and, with `selection.unknown_grasps`, for `unknown` clusters across the long and the short side of the footprint. Hard filters: gripper width, fingers against the bin walls and the other objects, then MoveIt (collision-free IK above the grasp, approach line, lift line); every rejection is counted by reason. The survivors are ordered by `ranking.strategy`: `learned` (default; logistic P(success) from pre-motion features minus a motion term, a JSON model in `openfactory_manipulation/config/` produced offline by `scripts/train_grasp_ranker.py`, which the cell only reads), `baseline` (D-016 score) or `uniform_random` (seeded per scene, for data collection). Every candidate's features, prior, score and `p_success` go into the attempt log.
+- `PickPlace` (`core/pick_place.py`, D-010): pre-grasp by a free-space plan, every move near or with an object as a straight line, jaw-opening checks after closing and after lift and transfer, recovery to ready on failure. `pick_place_once` runs one cycle at a known pose (D-009), `pick_perceived_once` one cycle on the most confident hypothesis (D-013).
+- `BinPicking` (`core/task.py`, D-017): one step is view of the input bin with the arm at ready → every object of the view into the planning scene (an `unknown` cluster as the box of its footprint and height) → grasp selection → `PickPlace.run_grasp` → next view, which verifies the pick (the object must be gone from the input bin) and feeds the next step. It keeps the task state of a scene: failed grasps that are not repeated, attempt budgets, the objects it placed and where. A jaw-opening check against a measured `unknown` width uses `selection.unknown_width_tolerance`. The loop ends with a reason (`bin_empty`, `no_feasible_grasp`, `only_unknown`, `output_full`, `attempt_budget`, `failure_budget`, `no_view`).
 
 The output bin is not observed by the camera: the cell places on a fixed grid of points in `output_bin` and remembers what it put where (planning-scene obstacles), so the object's final pose there is known only to the evaluation harness. If no place point is feasible the held object is set down where it was picked. The planning-scene world holds objects only and belongs to this loop, which empties it at every new scene.
 

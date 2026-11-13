@@ -44,6 +44,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Consequences:** MoveIt sees the table as a robot link (allowed collisions with `base_link_inertia` and `shoulder_link` in the SRDF), not as a planning-scene collision object. Bins and camera mount (phases 2–3) are revisited when a scene node exists. The URDF given to MoveIt differs from the RSP one only in the Gazebo controllers path.
 - **Evidence:** 2026-10-29 cell launch (`docs/environment.md`): TF matches `cell.yaml`, MoveIt rejects arm–table contact, RViz Plan & Execute runs through `joint_trajectory_controller`.
 - **Status:** accepted.
+- **Update 2026-11-13:** the bins (D-008) and the camera body (D-011) became fixture links like the table; the planning-scene world holds objects only.
 
 ## D-007 — Simple parallel-jaw gripper, friction grasp
 
@@ -110,6 +111,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Scope:** separate objects resting in their catalog orientation. Touching or stacked objects, tumbled objects, and anything in the bin volume that is not a catalog object (the arm during a pick) are phase 4.
 - **Evidence:** 63 pytest cases on synthetic z-buffered views of the catalog objects (each step, and the whole pipeline with and without the depth model); synthetic Monte Carlo before the first live run: 1800 random single-object views, 0 wrong classes, position error at most 1.1 mm, yaw at most 2.1°, 0 detections in 200 noisy empty bins, 9 ms per frame. Live: E-003 part B.
 - **Status:** accepted for phase 3.
+- **Update 2026-11-13:** the scope line above did not happen as written. Phase 4 kept separate objects in their catalog orientation and kept the arm out of the views by looking only from ready (D-017); tumbled objects came in phase 5 as `unknown` clusters (D-018); touching and stacked objects are still out of scope.
 
 ## D-013 — Camera-driven pick: the most confident hypothesis replaces the known pose
 
@@ -163,6 +165,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Evidence:** 20 pytest cases in `test_grasps.py`. Development run `phase4_bin_picking_dev_20261111T172211Z_s1000` (seed 1000, 6 scenes of 5 objects): 29 picks, 315 candidates, rejections `wall_collision` and `neighbour_collision` only, no MoveIt rejection among those evaluated, 0 of 5228 executed states in collision, 0 objects disturbed. Evaluation: E-004.
 - **Limits:** an object within about 40 mm of two walls has no candidate (fingers 10 mm thick, 5 mm pre-shape margin, 3 mm clearance): one cylinder in a corner in the development run. No side grasps, no grasp on tumbled objects. The geometric filter and MoveIt use two models of the same gripper; the first is stricter by its clearance.
 - **Status:** accepted for phase 4.
+- **Update 2026-11-13:** grasps on tumbled objects exist since phase 5, as candidates on `unknown` clusters (D-018); the D-016 score is now the `baseline` ranking and `learned` is the default (D-019).
 
 ## D-017 — Bin-picking loop: verify with the next view, place on a remembered grid, deposit criterion
 

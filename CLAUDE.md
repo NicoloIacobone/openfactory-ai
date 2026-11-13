@@ -22,7 +22,7 @@ A phase starts only after the previous one is closed, and closes only when its m
 
 1. **Closed loop, never animation.** Robot motion goes through ROS 2 planning and controllers into the simulator. No scripted joint playback, no teleported objects, no visual-only demos.
 2. **Perception never commands joints.** It publishes object hypotheses and grasp candidates; planning and execution validate and act.
-3. **Baseline before AI.** Deterministic pick/place (phase 2) and geometric perception/grasping (phases 3–4) must work and be measured before any learned module, even "just to try".
+3. **Baseline before AI.** Every capability first works and is measured with a deterministic or geometric method; only then may a learned module replace or rank it, even "just to try". Phases 2–5 did this for pick and place, perception and grasp ranking.
 4. **Feasibility and safety are hard filters.** IK, reachability, collision and trajectory checks reject candidates *before* quality ranking. Planning is always collision-aware; MoveIt 2 is preferred. Another planner only with a reason recorded in `docs/decisions.md`, and it must still be collision-aware.
 5. **No ground-truth leakage.** Simulator object poses are for evaluation and debug labels only. Perception and grasp selection consume camera data (RGB, depth, `camera_info`) and TF, never ground truth. Ground-truth topics live under `/ground_truth/` and nothing in perception or manipulation subscribes to them.
 6. **Reproducible.** Scene randomization is seeded and versioned; trials write structured logs and metrics. A result that cannot be re-run from its seed and config does not count.
@@ -61,7 +61,7 @@ ssh doppelvm 'source /opt/ros/jazzy/setup.bash && <command>'
 
 ## Build and test
 
-Standard colcon workflow, verified on the first packages (2026-10-29):
+Standard colcon workflow:
 
 ```bash
 # [VM] build outside the shared folder

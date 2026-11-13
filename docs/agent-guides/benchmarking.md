@@ -8,7 +8,7 @@ One JSON object per attempt (JSONL) under `data/trials/<run_id>/` (git-ignored),
 
 `run_id`, `trial_id`, `attempt`, `git_commit`, `seed`, `config` (path + hash), `strategy`, `object_category`, `selected_grasp`, `candidates_total`, `candidates_rejected` (by reason), `planner_result`, `execution_result`, `success`, `failure_reason`, timings (`perception_s`, `planning_s`, `execution_s`, `total_s`).
 
-The log format lives in one pure module with tests; every producer uses it.
+The log format lives in one pure module with tests (`scripts/trial_log.py`); every producer uses it.
 
 ## Metrics
 
@@ -26,21 +26,22 @@ The log format lives in one pure module with tests; every producer uses it.
 ## Fair comparisons
 
 - Same held-out seed list and object mix for every strategy. Tuning/training seeds and evaluation seeds are disjoint and stored in versioned config files.
-- Report the number of trials and uncertainty (e.g. Wilson interval for rates, bootstrap for times).
+- Report the number of trials and uncertainty (e.g. Wilson interval for rates, bootstrap for times and paired differences).
 - Break failures down by stage.
-- Key comparisons: known-pose deterministic vs camera-driven; geometric vs learned grasp ranking; optionally single-view vs improved 3D/multi-view representation.
+- Made so far: known pose vs camera-driven (E-002, E-003), baseline vs learned grasp ranking (E-005). Open: single-view vs multi-view or a richer 3D representation.
 
 ## Scripts
 
-- `scripts/benchmark.py [--set dev|eval]`: runs the seeded scenes of `scripts/config/phase4_bin_picking.yaml` through the cell's own loop, writes `attempts.jsonl`, `scenes.jsonl` and `summary.json`. Re-runnable, no manual steps. Ground-truth judgement in `scripts/bin_picking_eval.py` (pure, tested).
-- `scripts/benchmark.py --config scripts/config/phase5_tumbled.yaml --set eval --strategy baseline|learned|explore|catalog_only`: phase 5, same harness; run ids `phase5_tumbled_<set>_<strategy>_...`.
-- `scripts/train_grasp_ranker.py RUN_DIR ... --out MODEL.json`: batch fit of the learned ranking (pure logic in `scripts/ranker_fit.py`, numpy, scene-grouped cross-validation); refuses evaluation runs. `scripts/compare_strategies.py RUN_DIR ...`: strategies on the same scenes, Wilson intervals and a scene bootstrap of the paired differences.
+- `scripts/benchmark.py [--config FILE] [--set NAME] [--strategy NAME]`: runs the seeded scenes of a set of the config (default `scripts/config/phase4_bin_picking.yaml`) through the cell's own loop, writes `attempts.jsonl`, `scenes.jsonl` and `summary.json`. Re-runnable, no manual steps. Ground-truth judgement in `scripts/bin_picking_eval.py` (pure, tested).
+- A config with `strategies` (`phase5_tumbled.yaml`) names benchmark strategies, each a combination of `unknown_grasps` and a `ranking.strategy`: `catalog_only` (phase 4 cell), `baseline`, `explore` (ranking `uniform_random`, for training data) and `learned`. Run ids are `<run_name>_<set>_<strategy>_...`. The benchmark name `explore` and the ranking name `uniform_random` are kept apart on purpose: renaming either would break the re-run commands and the config hash recorded in E-005.
+- `scripts/train_grasp_ranker.py RUN_DIR ... --out MODEL.json`: batch fit of the learned ranking (pure logic in `scripts/ranker_fit.py`, NumPy, scene-grouped cross-validation); refuses evaluation runs. `scripts/compare_strategies.py RUN_DIR ...`: strategies on the same scenes, Wilson intervals and a scene bootstrap of the paired differences.
+- In the VM, long runs go through `scripts/vm/run_benchmark.sh NAME <benchmark args>` (sources ROS, `~/NAME.log`, exit code in `~/NAME.done`) and `scripts/vm/run_chain.sh` for several in a row (`docs/environment.md`, "Operating the VM over SSH").
 - `scripts/randomize_scene.py`: see the simulation guide.
-- Results summary (tables, plots) in `docs/experiments.md` with the run id, commit and config; raw logs stay in `data/`.
+- Results summary (tables, plots) in `docs/experiments.md` with the run id, commit, config and the command that re-runs it; raw logs stay in `data/`.
 
-## Learned models (phase 5 only)
+## Learned models
 
 - Only after the baseline numbers exist in `docs/experiments.md`.
-- Phase 5 (D-019): training data from the `train` seed only, collected with the `uniform_random` strategy; the model file goes in `openfactory_manipulation/config/` with its provenance (runs, data hash, commits) and a `_report.json` next to it.
+- Protocol of D-019: training data from the training seed only, collected with `explore`; code, thresholds and model frozen before the held-out seeds. The model file goes in `openfactory_manipulation/config/` with its provenance (runs, data hash, commits) and a `_report.json` next to it.
 - Labels come from simulated trial outcomes; training runs as a batch job, not inside interactive simulation, and not heavy training on the Mac/VM. Remote compute only if needed and agreed.
 - Scoped AI: rank, predict failure or uncertainty, support recovery. No end-to-end network commanding the robot.

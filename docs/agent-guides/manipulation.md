@@ -4,54 +4,43 @@ Applies when a task touches grasp generation or ranking, task planning, MoveIt 2
 
 ## Components
 
-| Component | Input | Output |
-|---|---|---|
-| `grasp_selector` | object hypotheses, point cloud, robot state | ranked grasp candidates (only feasible ones) |
-| `task_planner` | best grasp, destination bin, task state | MoveIt planning requests, next action |
-| `robot_executor` | trajectories, gripper commands | execution result and state |
-| `scene_manager` | prior state, perception update, action result | updated scene/task state, recovery request |
+| Component | In code (`openfactory_manipulation`) | Input | Output |
+|---|---|---|---|
+| `grasp_selector` | `grasp_selector.GraspSelector`, `core/grasps.py`, `core/ranking.py` | object hypotheses, robot state | ranked grasp candidates (only feasible ones) |
+| `task_planner` + `robot_executor` | `pick_place.PickPlace`, `core/pick_place.py` | chosen grasp, place point | MoveIt requests, trajectories, gripper commands, cycle result |
+| `scene_manager` | `bin_picking.BinPicking`, `core/task.py` | prior state, new view, cycle result | task state, next action, recovery |
 
 Interfaces are recorded in `docs/architecture.md`; changing one needs the user's approval.
 
 ## Planning
 
-- MoveIt 2 when the audited environment supports it (planning groups, kinematics, controllers in `openfactory_moveit_config`). Start with the standard APIs (`moveit_py` or MoveGroup interface); add MoveIt Task Constructor only when multi-stage tasks need it.
-- The planning scene contains the table, both bins and the camera mount as collision objects (fixed infrastructure may be known), plus perceived objects from perception — not from ground truth.
-- Grasped objects are **attached** to the end effector in the planning scene on grasp and **detached** on release; the gripper's allowed collisions with the attached object are set explicitly.
-- Trajectories run through controllers (`FollowJointTrajectory`); the gripper through its controller/action. Never write joint states directly.
+- MoveIt 2 through the actions and services of `move_group` (`moveit_interface.py`): free-space moves are `/move_action` plans with `plan_only`, executed through `/execute_trajectory`; every move near or with an object is a straight `/compute_cartesian_path` line; `/compute_ik` for grasp feasibility; `/apply_planning_scene` for objects (D-010, D-016). MoveIt Task Constructor only if multi-stage tasks need it.
+- Fixed infrastructure (table, bins, camera body, floor) is made of links of the cell URDF, not planning-scene objects (D-006, D-008, D-011). The planning-scene world holds objects only: those of the current view and those the cell placed, never from ground truth. It belongs to the loop, which empties it at every new scene: `move_group` keeps the objects of a process that ended (D-017).
+- Grasped objects are **attached** to `gripper_tcp` on grasp and **detached** on release, with the gripper links as touch links.
+- Trajectories run through controllers (`FollowJointTrajectory`); the gripper through `GripperCommand`. Never write joint states directly.
 
 ## Grasp selection
 
 Order is fixed:
 
-1. Generate candidates from geometry (top-down and side grasps on primitives; antipodal pairs on point clouds).
-2. **Hard filters:** gripper width/geometry, IK solution, reachability, collision-free pre-grasp/grasp/lift/retreat, trajectory feasibility. Rejected candidates are logged with the reason.
-3. Rank the survivors. Baseline: hand-designed score. Later objective, terms normalized:
-   `J(g) = λ1·success(g) − λ2·collision(g) − λ3·motion_cost(g) − λ4·occlusion(g)`.
-   Collision and safety stay hard filters, never only penalties.
+1. Generate candidates from geometry: top-down grasps on catalog shapes (D-016) and on `unknown` clusters, across the long and the short side of the footprint (D-018). Side grasps and antipodal pairs on point clouds do not exist yet.
+2. **Hard filters:** gripper width, fingers and palm against walls and neighbours, then MoveIt: collision-free IK above the grasp, approach line, lift line. Rejected candidates are logged with the reason.
+3. Rank the survivors with `ranking.strategy` (`core/ranking.py`): `learned`, the default, is a logistic P(success) minus a motion term (D-019); `baseline` is the hand-designed score of D-016; `uniform_random` is for data collection. A strategy only orders feasible candidates and cannot refuse one: never put a feasibility check in a score. `ranking.features` is the single source of the features for logs and inference: change it only together with a new training run.
 
 ## Pick and place sequence
 
-pre-grasp → approach → close gripper → verify contact → lift → (attach) → move to destination → release → (detach) → retreat → verify → update scene.
+pre-grasp → approach → close gripper → verify jaw opening → lift → (attach) → move to destination → release → (detach) → retreat → verify with the next view → update scene.
 
 ## Verification and recovery
 
-- Success needs evidence from more than one source: gripper state (width/effort), execution result, and the scene after the action (perception sees the object gone from the input bin / in the destination bin).
+- Success needs evidence from more than one source: jaw opening after closing and after lift and transfer, execution result, and the next view (the object is gone from the input bin). The output bin is not observed (one camera).
 - Failures get a reason code logged per attempt. Cycle (`core/pick_place.py`): `scene_failed`, `ik_failed`, `planning_failed`, `execution_failed`, `gripper_failed`, `grasp_failed`, `grasp_slipped`, `place_blocked`, `timeout`. Loop (`core/task.py`): `object_not_removed`, `no_view`. Harness, from ground truth: `place_failed`, `collision`. Candidates are rejected with `gripper_width`, `wall_collision`, `neighbour_collision`, `ik_failed`, `approach_blocked`, `lift_blocked` (`core/grasps.py`), and a scene ends with one of the reasons in `core/task.py` (`bin_empty`, `no_feasible_grasp`, ...).
-- Recovery: re-perceive and replan, try the next candidate, back off and retry; give up after a bounded number of attempts and record it. Failed attempts never count as successes.
+- Recovery: open, straight rise, back to ready, look again and select again; a failed grasp is not repeated; bounded attempts per object and per scene (D-017). Failed attempts never count as successes.
 
-## Bin picking (phase 4)
+## Bin-picking loop
 
-- `ros2 run openfactory_manipulation bin_picking` empties the input bin; `BinPicking.step()` is one attempt, `reset()` starts a new scene and empties the planning-scene world (objects left in `move_group` by an earlier process would otherwise block place points, D-017).
+- `ros2 run openfactory_manipulation bin_picking` empties the input bin; `BinPicking.step()` is one attempt, `reset()` starts a new scene and empties the planning-scene world.
 - Views are taken with the arm at ready only: perception sees whatever is in the bin volume.
 - A held prism can swing between the pads (D-015); do not raise its grasp.
-
-## Phase 5: unknown clusters and ranking strategies
-
-- `selection.unknown_grasps` lets the cell try clusters perception cannot name (D-018): two candidates per cluster (`across_long`, `across_short`), same hard filters. Their width is measured, so the jaw checks use `selection.unknown_width_tolerance`.
-- A standing prism held across the long side of its footprint is a wedge: the pads squeeze the slanted faces and it slips out (`grasp_failed`). Across the short side it holds.
-- `ranking.strategy`: `baseline` | `uniform_random` | `learned` (D-019, `core/ranking.py`). Strategies only order feasible candidates; never put a feasibility check in a score. `ranking.features` is the single source of the features for logs and inference: change it only together with a new training run.
-
-## Phase 2 note
-
-Deterministic pick/place uses a known object pose as fixed infrastructure input, documented as such; it is the baseline that camera-driven picking is compared against later.
+- `unknown` clusters are tried only with `selection.unknown_grasps` (on by default since E-005); their width is measured, so the jaw checks use `selection.unknown_width_tolerance`. A standing prism held across the long side of its footprint is a wedge and slips out; across the short side it holds (D-018).
+- `pick_place_once` (object at a known pose, D-009) and `pick_perceived_once` (most confident hypothesis, D-013) run single cycles for debugging.

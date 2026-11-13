@@ -294,3 +294,81 @@ Every detected failure in the phase 5 runs with the frozen code, held-out and tr
 - The learned ranking beats the baseline on pick success on both held-out seeds (the rule of D-019), by 5.6 points over the 40 scenes (bootstrap 95 % interval 2.2 to 9.2), and it is the default. It got there by learning the one failure mode these scenes have (a standing prism held across its long side is a wedge) from random-order outcomes, without being told; that is also the limit of the result: a richer scene family is needed to show more than that.
 - Phase 5 measurable test (set in the plan before the runs): 0 collisions in every run, ≤ 3 undetected failures per set (0), recovery ≥ 0.90 with ≥ 20 failures (56/56), completion of the default strategy ≥ 0.80 on `eval` and `confirm` (0.99 and 1.00), comparison run and reported with uncertainty on two unseen seeds with 100 objects per strategy and set, phase 4 evaluation set still passing: **pass**.
 - Limits, besides those of D-018 and D-019: one camera, so the output bin and the held object are still unseen (E-004); simulation is not bit-repeatable between runs, so a paired scene is close but not identical for the two strategies; the training and test scenes come from the same generator.
+
+## E-006 — Phase 6, relay loop: a ring of N arms passing objects round N bins (2026-11-13)
+
+- Question: do N arms keep objects going round N bins on their own (arm *i* from bin *i* to bin *(i + 1) mod N*, D-020, D-021), with every motion planned against the other arms, for N = 2 and N = 3 over 100 handovers each, and does a ring of 4 arms still run on this VM?
+- Strategy: `relay_round_robin`: one arm at a time, the others parked; each turn is one attempt of the phase 5 cell (`BinPicking.step`, learned ranking, unknown-cluster grasps on) with the place points and obstacles taken from the view of the destination bin, and the object that waited longest first.
+- Scene: 3 objects per bin (6 with N = 2, 9 with N = 3, 12 with N = 4), types drawn by the seed, catalog orientation, random position and yaw (bin *k* holds scene *k* of the seed). The harness spawns them once and never touches them again.
+- Success of a handover: the cell reports it (pick verified, object seen within 30 mm of its place point in the next view of the destination bin) **and** ground truth shows that object at rest inside the destination bin **and** no executed state (`/joint_states` every 0.1 s, every arm, re-checked by MoveIt once per arm group, so arm against arm too) is in collision.
+- Thresholds, from the plan approved before any code and in `scripts/config/phase6_relay.yaml` from its first version: handover success ≥ 0.90; 0 executed states in collision; ≤ 1 object lost out of the bins; ≤ 3 failures the cell did not detect; the loop reaches 100 handovers without stopping itself; every arm completes handovers. N = 4 is a smoke run (one lap at least, RAM and real-time factor reported), not a threshold.
+- Seeds: development 6000 (20 handovers) / evaluation 61 (100 handovers) / confirmation 62 (100 handovers, added after the first evaluation run with three arms failed, as told below). Camera depth model on.
+- Commit / config: final code `a455245`, `scripts/config/phase6_relay.yaml` (sha256 `7ebf741ad418`), `openfactory_manipulation/config/pick_place.yaml`. First evaluation chain: `f134106`, config sha256 `91dfafd804f1` (the same file without the `confirm` set). Ring: `ros2 launch openfactory_bringup ring.launch.py n:=N rviz:=false` on the VM display. Logs in `data/trials/`.
+- Re-run, in the VM with the ring of the same N launched: `python3 scripts/relay_benchmark.py --arms 2 --set eval`, `--arms 3 --set eval`, `--arms 3 --set confirm`, `--arms 4 --set dev --handovers 8`.
+
+### Result with the final code
+
+| Metric | N = 2, seed 61 (`phase6_relay_n2_eval_20261113T183530Z_s61`) | N = 3, seed 61 (`phase6_relay_n3_eval_20261113T161244Z_s61`) | N = 3, seed 62 (`phase6_relay_n3_confirm_20261113T173527Z_s62`) | Pass |
+|---|---|---|---|---|
+| Handover success (95 % Wilson CI) | 99/100 (0.95–1.00) | 100/100 (0.96–1.00) | 97/100 (0.92–0.99) | ≥ 0.90 |
+| Per arm | 49/50, 50/50 | 34/34, 33/33, 33/33 | 33/33, 33/33, 31/34 | each ≥ 1 handover |
+| Loop end | `handovers_done` | `handovers_done` | `handovers_done` | reaches 100 turns |
+| Executed states in collision | 0 of 26 584 | 0 of 43 676 | 0 of 31 929 | 0 |
+| Objects lost out of the bins; other objects disturbed by a turn | 0; 0 | 0; 0 | 0; 0 | ≤ 1 lost |
+| Handovers the cell believed while ground truth disagrees; failures it reported while the object arrived | 0; 0 | 0; 0 | 0; 0 | ≤ 3 |
+| Failures by reason (stage) | 1 `grasp_slipped` (after transfer) | none | 1 `grasp_slipped` (after transfer), 2 `grasp_failed` (close) | — |
+| Detected failures followed by the arm parked and a new view | 1/1 | none to recover | 3/3 | — |
+| Turns skipped; arms not parked after a turn | 0; 0 | 0; 0 | 0; 0 | — |
+| By what the target was: cube / cylinder / prism / two objects seen as one cluster | 20/20, 40/40, 39/40, — | 35/35, 25/25, 40/40, — | 32/33, 50/50, 15/15, 0/2 | — |
+| Class of the target as perception saw it; xy error median / max | 100/100; 0.31 / 0.88 mm | 100/100; 0.26 / 7.09 mm | 98/98; 0.36 / 6.37 mm | — |
+| Handed-over object seen from its place point, median / 95th / max | 4.2 / 5.3 / 20.1 mm | 4.6 / 10.9 / 21.3 mm | 4.2 / 9.0 / 27.5 mm | — |
+| Picks of an object that another arm had set down | 94 | 91 | 89 | — |
+| Candidates; rejected by walls / neighbours / gripper width / earlier failure | 1249; 21 / 0 / 9 / 5 | 1070; 20 / 0 / 0 / 0 | 1390; 54 / 12 / 33 / 29 | — |
+| Simulated time from the first to the last handover | 2807 s | 2761 s | 2761 s | — |
+| Turn time on the wall clock, median (min–max) | 27.1 s (23.2–30.0) | 44.1 s (32.8–83.5) | 31.9 s (17.8–43.1) | — |
+| of which views / planning / execution, median | 4.5 / 0.23 / 17.5 s | 7.0 / 0.40 / 28.8 s | 5.5 / 0.29 / 21.0 s | — |
+| Handovers per hour of wall time | 133 | 80 | 108 | — |
+| Objects that went round in the last 20 handovers | **3 of 6** | 8 of 9 | **5 of 9** | reported |
+
+All three runs pass every threshold. Over the three: 296 of 300 handovers, 0 of 102 189 executed states in collision, the cell's verdict equal to ground truth on all 300 turns, no object out of the bins, all 4 failures detected and recovered from.
+
+N = 4, smoke (`phase6_relay_n4_dev_20261113T192518Z_s6000`, seed 6000, 8 handovers): 8/8, two laps, every arm 2/2, 0 of 3579 states in collision, turn time 45.4 s median, 79 handovers per hour of wall time. It runs; it is not a full set and counts for no threshold.
+
+VM during the runs (`~/p6f_*.env`, one sample 5 minutes into each): N = 2, 1.75 GiB used, 2.16 GiB available, real-time factor 0.96; N = 3, 1.96 GiB used, 1.94 GiB available, real-time factor 0.52 and 0.20; N = 4, 2.13 GiB used, 1.77 GiB available, real-time factor 0.42; load average 7.4–9.7 on 4 cores, no swap. One sample of the real-time factor says little: the run that showed 0.20 was the faster of the two with three arms. In simulated time a turn takes the same 28 s with two and with three arms; the wall-clock rates differ with the CPU the VM gets (`docs/environment.md`).
+
+### Objects that drop out of the loop
+
+The thresholds count handovers, and a loop can make 100 of them with fewer and fewer objects. The last row of the table is computed from `attempts.jsonl` (distinct targets of the successful handovers in the last 20 turns); the views in `turns.jsonl` show why the others stopped moving. No arm tried and failed on them again and again: the hard filters refused them, which is what they are for.
+
+| Run | Out of the loop at the end | Cause |
+|---|---|---|
+| N = 2, seed 61, `f134106` (first chain) | none of 6 | — |
+| N = 2, seed 61, `a455245` | 3 prisms of 6 objects | One prism set down at turn 76 at a corner place point of bin 1, 50 mm from the end wall: never picked again, every candidate `wall_collision`. At turn 80 a prism slipped during the transfer and fell back into bin 0 against another prism; the two are seen from then on as one `unknown` cluster, wider than the gripper |
+| N = 3, seed 61, `a455245` | 2 prisms of 9 objects | Each set down at a corner place point (turns 61 and 83) and never picked again, every candidate `wall_collision` |
+| N = 3, seed 62, `a455245` | 2 prisms, and a cube and a prism as one cluster, of 9 objects | At turn 2 a cube slipped and fell back into bin 2 against a prism set down there at turn 1 (the cube was never handed over in this run). The two are seen as one `unknown` cluster of 109 × 64 mm, tried across its short side at turns 11 and 35 (`grasp_failed`, detected) and excluded after that. Two prisms set down at or near corner place points (turns 16 and 73), every candidate `wall_collision` |
+
+- A prism has one finger direction, along its 60 mm length. The six place points of D-017 are 50 mm from the end walls and 55 mm from the side walls, chosen for a bin that nobody picked from. A prism set down at a corner point with its length towards the near wall is the case E-004 already left in the bin (a prism 48 mm from a wall with its only finger direction pointing at it). Cubes and cylinders at the same points were always picked again. The yaw at which an object is set down is whatever it had in the gripper: the loop does not choose it.
+- A cluster of two touching objects is the phase 4 limit "objects not touching": nothing in the loop separates them.
+- So in 3 of the 4 runs of 100 handovers the ring ended with fewer objects going round than it started with (6 → 3, 9 → 7, 9 → 5). How long a ring keeps going before it ends as `no_work` was not measured: no run was longer than 100 handovers.
+- The same two runs on seed 61 with N = 2 are not copies of each other: the first made 100/100 with all 6 objects going round to the end, the second met one slip and one prism by a wall. The simulation is not bit-repeatable (E-005) and a loop feeds every difference back into the scene.
+
+### How the evaluation went (all runs reported)
+
+The thresholds were never changed. The code was changed once after an evaluation run failed.
+
+| Run | Commit | Result | What it showed |
+|---|---|---|---|
+| `phase6_relay_n2_dev_20261113T130439Z_s6000` | `b476917` + uncommitted | 4/4 | Smoke run of the harness |
+| `phase6_relay_n2_dev_20261113T130654Z_s6000` | same | 20/20, 0 of 5607 states | One cube made 18 of the 20 handovers and four objects never moved: the ranking prefers the object just set down, alone on the roomiest point. Fix: the object that waited longest goes first (D-021) |
+| `phase6_relay_n2_dev_20261113T131850Z_s6000` | same | stopped by hand after 9 turns, not counted | Every state of two turns "in collision": the validity check of the whole robot as one group set a padded obstacle of the destination bin against the wall of that bin, which is a robot link. Fix in the harness: one check per arm group (D-021) |
+| `phase6_relay_n2_dev_20261113T132416Z_s6000` | same | 20/20, 6/6 objects moved, 0 of 6407 | Passes |
+| `phase6_relay_n3_dev_20261113T133800Z_s6000` | same | 20/20, 9/9 objects moved, 0 of 8003 | Passes; code committed up to `f134106` |
+| `phase4_bin_picking_eval_20261113T135351Z_s1` (2 scenes) | same | 10/10 attempts, 10/10 objects, 0 of 1922 | The single-arm cell with the shared code changed for the ring: as in E-004 |
+| `phase6_relay_n2_eval_20261113T140116Z_s61` | `f134106` | passes: 100/100, 50 laps, 0 of 31 151, 113 handovers per hour | First look at seed 61 |
+| `phase6_relay_n3_eval_20261113T150030Z_s61` | `f134106` | **failed**: stopped itself as `no_view` after 50 turns, 50/50 handovers, 0 of 24 521 | With three cameras the VM simulated at half speed and the 10 s wait for a view, counted on the wall clock, ran out. Fix (`a455245`): the wait is counted on the simulation clock (D-021). Nothing about grasps, place points or scenes changed |
+| `phase6_relay_n4_dev_20261113T154854Z_s6000` | `f134106` | 8/8, 2 laps, 0 of 4418 | Smoke; real-time factor 0.29 |
+| `phase6_relay_n3_dev_20261113T160519Z_s6000` | `f134106` + the fix | 6/6 | Check of the fix |
+| the three runs of the table, then `phase6_relay_n4_dev_20261113T192518Z_s6000` | `a455245` | all pass; smoke 8/8 | Seed 61 with N = 3 had been seen for 50 turns by the earlier code; seed 62 is the set the final code met for the first time: 97/100 |
+
+- Conclusion: the relay-loop test passes for N = 2 and N = 3 on the evaluation seed and for N = 3 on a confirmation seed, and a ring of 4 arms runs on the VM. What the test does not show, and the runs do: the loop slowly loses objects to poses its arms cannot grasp, so "for ever" is not demonstrated beyond 100 handovers.
+- Limits, besides those of D-020 and D-021: one arm moves at a time, so the handover rate does not grow with N (28 s of simulated time per turn for any N); the simulation slows down with every bin on this VM (CPU, not memory); slips are rare (2 in 300 turns) but in a loop each one can take two objects out; N = 4 was run for two laps only; the three sets share one object generator and three object types.

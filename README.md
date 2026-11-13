@@ -6,7 +6,7 @@ The first deliverable, an **autonomous random bin-picking cell**, is done. Next 
 
 ## Status
 
-**Phase 5, AI and robustness, is closed; phase 6, multi-arm cells, is in progress:** the relay loop runs as a ring of N arms and N bins, N chosen at launch (`docs/architecture.md`, "Ring of N arms"); its closing test is E-006.
+**Phase 5, AI and robustness, is closed; phase 6, multi-arm cells, is in progress:** the relay loop runs as a ring of N arms and N bins, N chosen at launch (`docs/architecture.md`, "Ring of N arms"), and passes its test for N = 2 and N = 3 (E-006); the Rubik's cube pair is not started.
 
 A UR5e with a parallel-jaw gripper empties on its own an input bin holding five cubes, cylinders and prisms at random poses, including cylinders lying on their side and prisms standing on an end face, which its geometric perception does not recognise. It grasps those as clusters of unknown shape through the same hard filters (gripper geometry, walls, neighbours, then MoveIt IK and straight-line checks), and ranks the feasible grasps with a logistic model of grasp success trained on 320 simulated attempts.
 
@@ -17,6 +17,7 @@ A UR5e with a parallel-jaw gripper empties on its own an input bin holding five 
 | 3 | Calibration, geometric perception against ground truth, camera-driven pick | 79/79 objects, 0.2 mm median position error; 28/30 picks (E-003) |
 | 4 | Bin picking, 20 seeded scenes of five upright objects | 99/100 objects, 0 collisions; 99/100 and 97/100 on two confirmation seeds (E-004) |
 | 5 | Tumbled objects; learned ranking vs hand-designed score on the same 40 held-out scenes | pick success 198/203 vs 195/212 (paired difference +5.6 points, bootstrap 95 % interval +2.2 to +9.2); 199/200 vs 195/200 objects deposited, against 128/200 for the phase 4 cell; recovery 56/56; 0 collisions (E-005) |
+| 6, relay loop | N arms passing objects round N bins, one arm at a time, 100 handovers per run, 3 objects per bin | N = 2: 99/100; N = 3: 100/100 and 97/100 on a confirmation seed; 0 of 102 189 executed states in collision, arm against arm included; 0 objects lost; N = 4 runs (8/8, smoke) (E-006) |
 
 Every result in `docs/experiments.md` gives its run ids, commit, config, seeds, failures and the command that re-runs it.
 
@@ -26,7 +27,9 @@ Known limits:
 - Top-down grasps only: an object close to a wall on the side the fingers close from is left.
 - The ranking orders feasible grasps and cannot refuse one: when the only feasible grasp is a bad one, it is still tried.
 - The phase 5 scenes have one dominant failure mode, which the model found from data but a hand rule could also encode once known.
-- One camera, above the input bin: the output bin and the held object are not observed.
+- One camera, above the input bin: the output bin and the held object are not observed (single-arm cell; in the ring every bin has a camera).
+- Ring: one arm moves at a time, so the handover rate does not grow with N. Objects drop out of the loop: a prism set down by a wall the wrong way round, or two objects touching after a slip, are not picked again; in three of four runs of 100 handovers 2 to 4 objects had stopped going round by the end (E-006).
+- Ring on the development VM (4 cores): every bin slows the simulation down, to half speed or less with three arms; the CPU sets the practical N, not the geometry or the memory.
 
 ## Roadmap
 
@@ -102,4 +105,4 @@ python3 <repo>/scripts/relay_benchmark.py --arms 3 --set dev    # spawns seeded 
 ros2 run openfactory_manipulation relay --arms 3                # the loop alone, for ever, on objects already in the bins
 ```
 
-The commands that reproduce each phase's results are in `docs/experiments.md` (E-001 to E-005). The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.
+The commands that reproduce each phase's results are in `docs/experiments.md` (E-001 to E-006). The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.

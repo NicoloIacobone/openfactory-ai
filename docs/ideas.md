@@ -1,10 +1,10 @@
 # Ideas
 
-Candidate goals for the phases after 5, written down before any plan. An idea becomes a phase only with a plan, a measurable closing test and the user's go-ahead; until then nothing here is a commitment. The rules of `CLAUDE.md` apply to all of it.
+Candidate goals for later phases, written down before any plan. An idea becomes a phase only with a plan, a measurable closing test and the user's go-ahead; until then nothing here is a commitment. The rules of `CLAUDE.md` apply to all of it.
 
 ## 1. N-arm relay loop (first, the simple one)
 
-**Update 2026-11-13:** the first step listed below (arms and bins, no conveyor) is built as the ring of N arms: `docs/architecture.md`, "Ring of N arms", D-020, D-021, E-006. One model and one MoveIt instance for every arm, one camera per bin, one arm moving at a time. What is left of this idea:
+**Update 2026-11-13:** the first step listed below (arms and bins, no conveyor) is built as the ring of N arms and closed as phase 6: `docs/architecture.md`, "Ring of N arms", D-020, D-021, E-006. One model and one MoveIt instance for every arm, one camera per bin, one arm moving at a time. What is left of this idea:
 
 - Conveyors that carry the objects between the arms, instead of a bin shared by two neighbours.
 - Arms moving at the same time. In the ring only arms that share no bin could (never with N = 2 or 3, whose arms all share one); it needs execution outside `move_group`'s single `ExecuteTrajectory`, and either plans checked against the other arm's trajectory or work zones that an arm must own before it enters them.

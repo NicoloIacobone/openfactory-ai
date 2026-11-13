@@ -14,9 +14,9 @@ OpenFactory AI is a ROS 2 digital twin of a robotic cell that perceives a changi
 | 3 | RGB-D camera, TF, calibration, geometric perception | closed 2026-11-11: E-003 (calibration, perception 79/79, camera-driven pick 28/30), D-011–D-013 |
 | 4 | Random bin picking MVP with metrics | closed 2026-11-11: E-004 (99/100 objects on the evaluation seed, 99/100 and 97/100 on two confirmation seeds, 0 collisions), D-014–D-017 |
 | 5 | AI and robustness: learned ranking vs baseline, recovery | closed 2026-11-12: E-005 (tumbled objects; learned ranking 198/203 vs baseline 195/212 on 40 held-out scenes, 199/200 objects, recovery 56/56, 0 collisions), D-018–D-019 |
-| 6 | Multi-arm cells: N-arm relay loop, then a Rubik's cube scramble/solve pair (`docs/ideas.md`) | in progress: relay loop built as a ring of N arms and N bins (D-020, D-021), test E-006 passed 2026-11-13 (N = 2 99/100, N = 3 100/100 and 97/100 handovers, 0 collisions; objects drop out of the loop over time); Rubik pair not started |
+| 6 | Multi-arm cells: N-arm relay loop, as a ring of N arms and N bins | closed 2026-11-13: E-006 (N = 2 99/100 handovers, N = 3 100/100 and 97/100 on a confirmation seed, 0 collisions, N = 4 smoke 8/8; objects drop out of the loop over time), D-020–D-021 |
 
-A phase starts only after the previous one is closed, and closes only when its measurable test passes. When that happens, propose updating this table and `README.md`.
+A phase starts only after the previous one is closed, and closes only when its measurable test passes. When that happens, propose updating this table and `README.md`. No phase 7 is planned yet: the candidates (what is left of the relay loop, the Rubik's cube scramble/solve pair, the robot catalog) are in `docs/ideas.md` and become a phase only with a plan, a measurable test and the user's go-ahead.
 
 ## Non-negotiable rules
 

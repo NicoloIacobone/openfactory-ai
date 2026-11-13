@@ -2,11 +2,11 @@
 
 A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recovers in a closed loop**: a simulated RGB-D camera observes unordered objects, the system chooses a feasible grasp, plans a collision-aware motion, picks and places the object, verifies the outcome and replans after failures. Inspired by industrial 3D-vision bin-picking platforms (e.g. Mujin).
 
-The first deliverable, an **autonomous random bin-picking cell**, is done. Next come cells with several arms (`docs/ideas.md`), then a production line and a multi-robot factory.
+The first deliverable, an **autonomous random bin-picking cell**, is done, and so is the first cell with several arms, a ring of N of them passing objects round. Next: more multi-arm ideas (`docs/ideas.md`), then a production line and a multi-robot factory.
 
 ## Status
 
-**Phase 5, AI and robustness, is closed; phase 6, multi-arm cells, is in progress:** the relay loop runs as a ring of N arms and N bins, N chosen at launch (`docs/architecture.md`, "Ring of N arms"), and passes its test for N = 2 and N = 3 (E-006); the Rubik's cube pair is not started.
+**Phase 6, multi-arm cells, is closed:** a relay loop runs as a ring of N arms and N bins, N chosen at launch (`docs/architecture.md`, "Ring of N arms"), and passes its test for N = 2 and N = 3 (E-006). What may come next is in `docs/ideas.md`.
 
 A UR5e with a parallel-jaw gripper empties on its own an input bin holding five cubes, cylinders and prisms at random poses, including cylinders lying on their side and prisms standing on an end face, which its geometric perception does not recognise. It grasps those as clusters of unknown shape through the same hard filters (gripper geometry, walls, neighbours, then MoveIt IK and straight-line checks), and ranks the feasible grasps with a logistic model of grasp success trained on 320 simulated attempts.
 
@@ -17,7 +17,7 @@ A UR5e with a parallel-jaw gripper empties on its own an input bin holding five 
 | 3 | Calibration, geometric perception against ground truth, camera-driven pick | 79/79 objects, 0.2 mm median position error; 28/30 picks (E-003) |
 | 4 | Bin picking, 20 seeded scenes of five upright objects | 99/100 objects, 0 collisions; 99/100 and 97/100 on two confirmation seeds (E-004) |
 | 5 | Tumbled objects; learned ranking vs hand-designed score on the same 40 held-out scenes | pick success 198/203 vs 195/212 (paired difference +5.6 points, bootstrap 95 % interval +2.2 to +9.2); 199/200 vs 195/200 objects deposited, against 128/200 for the phase 4 cell; recovery 56/56; 0 collisions (E-005) |
-| 6, relay loop | N arms passing objects round N bins, one arm at a time, 100 handovers per run, 3 objects per bin | N = 2: 99/100; N = 3: 100/100 and 97/100 on a confirmation seed; 0 of 102 189 executed states in collision, arm against arm included; 0 objects lost; N = 4 runs (8/8, smoke) (E-006) |
+| 6 | N arms passing objects round N bins, one arm at a time, 100 handovers per run, 3 objects per bin | N = 2: 99/100; N = 3: 100/100 and 97/100 on a confirmation seed; 0 of 102 189 executed states in collision, arm against arm included; 0 objects lost; N = 4 runs (8/8, smoke) (E-006) |
 
 Every result in `docs/experiments.md` gives its run ids, commit, config, seeds, failures and the command that re-runs it.
 
@@ -41,8 +41,8 @@ Known limits:
 | 3 | Camera and 3D perception | Camera-driven object selection, documented calibration and frames |
 | 4 | Random bin picking | Autonomous MVP with metrics |
 | 5 | AI and robustness | Baseline vs learned grasp scoring, recovery, quantitative experiments |
-| 6 | Multi-arm cells | N arms passing objects around a ring of bins (conveyors later), then one arm scrambling a Rubik's cube and another solving it (`docs/ideas.md`) |
-| later | Factory expansion | Conveyor-fed line, inspection, scheduling |
+| 6 | Multi-arm cells | N arms passing objects around a ring of bins, N chosen at launch |
+| later | Ideas, then factory expansion | Conveyors and parallel arms for the ring, one arm scrambling a Rubik's cube and another solving it, a catalog of qualified robots (`docs/ideas.md`); conveyor-fed line, inspection, scheduling |
 
 Each phase is gated by a stable, measured previous phase.
 

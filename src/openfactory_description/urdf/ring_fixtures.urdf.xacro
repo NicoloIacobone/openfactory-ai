@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- Fixtures of the ring of N arms (round table, one bin and one camera per arm) as one Gazebo
+     model fixed to the world, spawned next to the arms so that they collide with them. The
+     same macro builds the fixtures inside ring.urdf.xacro for TF and MoveIt.
+     camera_sensor:=false leaves the camera bodies without their Gazebo sensors: physics-only
+     runs then need no display (D-005). -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="ring_fixtures">
+  <xacro:arg name="layout_file" default=""/>
+  <xacro:arg name="camera_file" default="$(find openfactory_description)/config/camera.yaml"/>
+  <xacro:arg name="camera_sensor" default="true"/>
+  <xacro:property name="layout" value="${xacro.load_yaml('$(arg layout_file)')}"/>
+  <xacro:property name="camera" value="${xacro.load_yaml('$(arg camera_file)')}"/>
+
+  <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/bin.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/camera.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/ring.xacro"/>
+
+  <link name="world"/>
+  <xacro:openfactory_ring_fixtures parent="world" layout="${layout}" camera="${camera}"
+                                   sensor="$(arg camera_sensor)"/>
+</robot>

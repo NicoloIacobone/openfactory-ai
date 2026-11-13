@@ -7,6 +7,18 @@
        sensor:=true adds the Gazebo rgbd_camera, for the fixtures model only. -->
   <xacro:macro name="openfactory_camera" params="parent cell camera sensor:=false">
     <xacro:property name="mount" value="${cell['camera_mount']}"/>
+    <xacro:openfactory_camera_at prefix="" parent="${parent}" camera="${camera}"
+                                 xyz="${mount['xyz'][0]} ${mount['xyz'][1]} ${mount['xyz'][2]}"
+                                 rpy="${mount['rpy'][0]} ${mount['rpy'][1]} ${mount['rpy'][2]}"
+                                 topic="${camera['simulator']['topic']}"
+                                 rate_hz="${camera['image']['rate_hz']}" sensor="${sensor}"/>
+  </xacro:macro>
+
+  <!-- A camera whose frames are `<prefix>camera_link` and `<prefix>camera_optical_frame`, at
+       `xyz`, `rpy` in `parent`, publishing on the Gazebo topic prefix `topic` (ring of N
+       arms: one camera above each bin). -->
+  <xacro:macro name="openfactory_camera_at"
+               params="prefix parent camera xyz rpy topic rate_hz sensor:=false">
     <xacro:property name="size" value="${camera['body']['size']}"/>
     <xacro:property name="mass" value="${camera['body']['mass']}"/>
     <xacro:property name="image" value="${camera['image']}"/>
@@ -14,7 +26,7 @@
     <!-- the body extends behind the optical centre -->
     <xacro:property name="body_xyz" value="${-size[0] / 2} 0 0"/>
 
-    <link name="camera_link">
+    <link name="${prefix}camera_link">
       <visual>
         <origin xyz="${body_xyz}" rpy="0 0 0"/>
         <geometry>
@@ -40,29 +52,28 @@
       </inertial>
     </link>
 
-    <joint name="camera_joint" type="fixed">
+    <joint name="${prefix}camera_joint" type="fixed">
       <parent link="${parent}"/>
-      <child link="camera_link"/>
-      <origin xyz="${mount['xyz'][0]} ${mount['xyz'][1]} ${mount['xyz'][2]}"
-              rpy="${mount['rpy'][0]} ${mount['rpy'][1]} ${mount['rpy'][2]}"/>
+      <child link="${prefix}camera_link"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
     </joint>
 
-    <link name="camera_optical_frame"/>
+    <link name="${prefix}camera_optical_frame"/>
 
-    <joint name="camera_optical_joint" type="fixed">
-      <parent link="camera_link"/>
-      <child link="camera_optical_frame"/>
+    <joint name="${prefix}camera_optical_joint" type="fixed">
+      <parent link="${prefix}camera_link"/>
+      <child link="${prefix}camera_optical_frame"/>
       <origin xyz="0 0 0" rpy="${-pi / 2} 0 ${-pi / 2}"/>
     </joint>
 
     <xacro:if value="${sensor}">
       <!-- A Gazebo camera looks along the x axis of its link; messages carry the optical frame -->
-      <gazebo reference="camera_link">
-        <sensor name="rgbd" type="rgbd_camera">
+      <gazebo reference="${prefix}camera_link">
+        <sensor name="${prefix}rgbd" type="rgbd_camera">
           <always_on>true</always_on>
-          <update_rate>${image['rate_hz']}</update_rate>
-          <topic>${sim['topic']}</topic>
-          <gz_frame_id>camera_optical_frame</gz_frame_id>
+          <update_rate>${rate_hz}</update_rate>
+          <topic>${topic}</topic>
+          <gz_frame_id>${prefix}camera_optical_frame</gz_frame_id>
           <camera>
             <horizontal_fov>${radians(image['hfov_deg'])}</horizontal_fov>
             <image>
@@ -74,7 +85,7 @@
               <near>${sim['clip'][0]}</near>
               <far>${sim['clip'][1]}</far>
             </clip>
-            <optical_frame_id>camera_optical_frame</optical_frame_id>
+            <optical_frame_id>${prefix}camera_optical_frame</optical_frame_id>
           </camera>
         </sensor>
       </gazebo>

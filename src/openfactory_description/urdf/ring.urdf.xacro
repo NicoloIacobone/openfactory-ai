@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<!-- Ring of N UR5e arms with their grippers on a round table, with gz_ros2_control (phase 6,
+     D-020). One robot model holds every arm, so that one MoveIt instance plans each arm
+     against all the others.
+     layout_file: written for one N by openfactory_description/ring.py (write_layout).
+     include_fixtures:=true  -> arms + fixed infrastructure (floor, table, bins, cameras):
+                                robot_state_publisher, MoveIt (fixtures are collision links).
+     include_fixtures:=false -> arms only: spawned in Gazebo next to the separate fixtures model
+                                (ring_fixtures.urdf.xacro). -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="openfactory_ring">
+  <xacro:arg name="layout_file" default=""/>
+  <xacro:arg name="ur_type" default="ur5e"/>
+  <xacro:arg name="include_fixtures" default="true"/>
+  <xacro:arg name="gripper_file" default="$(find openfactory_description)/config/gripper.yaml"/>
+  <xacro:arg name="camera_file" default="$(find openfactory_description)/config/camera.yaml"/>
+  <xacro:arg name="simulation_controllers" default=""/>
+  <!-- Links of one Gazebo model do not collide with each other unless the model says so: the
+       arms of the ring must stop each other physically, not only in MoveIt -->
+  <xacro:arg name="self_collide" default="true"/>
+
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/bin.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/gripper.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/camera.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/ring.xacro"/>
+
+  <xacro:property name="layout" value="${xacro.load_yaml('$(arg layout_file)')}"/>
+  <xacro:property name="gripper" value="${xacro.load_yaml('$(arg gripper_file)')}"/>
+  <xacro:property name="camera" value="${xacro.load_yaml('$(arg camera_file)')}"/>
+
+  <link name="world"/>
+
+  <xacro:if value="$(arg include_fixtures)">
+    <!-- Floor for collision checking only (top face at z = 0); Gazebo has its ground plane -->
+    <link name="floor">
+      <collision>
+        <origin xyz="0 0 -0.01" rpy="0 0 0"/>
+        <geometry>
+          <box size="${layout['floor_size']} ${layout['floor_size']} 0.02"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="floor_joint" type="fixed">
+      <parent link="world"/>
+      <child link="floor"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- camera bodies and frames only; the Gazebo sensors live in the fixtures model -->
+    <xacro:openfactory_ring_fixtures parent="world" layout="${layout}" camera="${camera}"/>
+  </xacro:if>
+
+  <xacro:openfactory_ring_arms layout="${layout}" gripper="${gripper}"
+                               ur_type="$(arg ur_type)" index="0"/>
+
+  <gazebo>
+    <self_collide>$(arg self_collide)</self_collide>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg simulation_controllers)</parameters>
+    </plugin>
+  </gazebo>
+</robot>

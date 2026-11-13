@@ -24,13 +24,22 @@
   <!-- parent: the table frame (centre of the table top) -->
   <xacro:macro name="openfactory_bin" params="name parent cell">
     <xacro:property name="spec" value="${cell['bins'][name]}"/>
-    <xacro:property name="t" value="${cell['bin_wall']}"/>
-    <xacro:property name="ix" value="${spec['inner_size'][0]}"/>
-    <xacro:property name="iy" value="${spec['inner_size'][1]}"/>
-    <xacro:property name="h" value="${spec['inner_size'][2]}"/>
+    <xacro:openfactory_bin_at link="${name}_bin" parent="${parent}"
+                              inner_size="${spec['inner_size']}" wall="${cell['bin_wall']}"
+                              xyz="${spec['xy'][0]} ${spec['xy'][1]} ${cell['bin_wall']}"
+                              rpy="0 0 0"/>
+  </xacro:macro>
+
+  <!-- A bin as link `link` (also the name of its frame) at `xyz`, `rpy` of the inner floor
+       centre in `parent`. inner_size: x, y, wall height above the bin floor; wall: thickness. -->
+  <xacro:macro name="openfactory_bin_at" params="link parent inner_size wall xyz rpy">
+    <xacro:property name="t" value="${wall}"/>
+    <xacro:property name="ix" value="${inner_size[0]}"/>
+    <xacro:property name="iy" value="${inner_size[1]}"/>
+    <xacro:property name="h" value="${inner_size[2]}"/>
     <xacro:property name="mass" value="2.0"/>
 
-    <link name="${name}_bin">
+    <link name="${link}">
       <!-- floor, then walls at +x, -x (full outer width) and +y, -y (between them) -->
       <xacro:openfactory_bin_box size="${[ix + 2 * t, iy + 2 * t, t]}" xyz="0 0 ${-t / 2}"/>
       <xacro:openfactory_bin_box size="${[t, iy + 2 * t, h]}" xyz="${(ix + t) / 2} 0 ${h / 2}"/>
@@ -47,10 +56,10 @@
       </inertial>
     </link>
 
-    <joint name="${name}_bin_joint" type="fixed">
+    <joint name="${link}_joint" type="fixed">
       <parent link="${parent}"/>
-      <child link="${name}_bin"/>
-      <origin xyz="${spec['xy'][0]} ${spec['xy'][1]} ${t}" rpy="0 0 0"/>
+      <child link="${link}"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
     </joint>
   </xacro:macro>
 </robot>

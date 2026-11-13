@@ -1,0 +1,11 @@
+# Ring of N arms and N bins (phase 6, D-020). The local geometry of every arm (its two bins,
+# the camera above each bin, the table height) comes from cell.yaml, so that each arm of the
+# ring works in the layout measured on the single-arm cell; the formula is in
+# openfactory_description/ring.py. Only what the ring adds is here. REP 103: metres.
+
+table_margin: 0.15        # the round table reaches this far beyond the arm bases (the cell's
+                          # table edge is 0.15 m behind its robot base)
+floor_margin: 1.0         # MoveIt's floor collision box reaches this far beyond the table
+
+camera_rate_hz: null      # null: the rate of camera.yaml; a lower rate saves CPU with many
+                          # cameras (views are taken with every arm at rest)

@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  <!-- Ring of N arms and N bins (phase 6, D-020). `layout` is the file written by
+       openfactory_description/ring.py (poses of every arm base and bin, names and prefixes);
+       xacro has no loops, so the macros below recurse over its lists. The arm, gripper, bin
+       and camera are the macros of the single-arm cell with a prefix. -->
+
+  <!-- Round table, then one bin with its camera per entry of layout['bins'] -->
+  <xacro:macro name="openfactory_ring_fixtures" params="parent layout camera sensor:=false">
+    <xacro:openfactory_round_table parent="${parent}" radius="${layout['table']['radius']}"
+                                   height="${layout['table']['height']}"/>
+    <xacro:openfactory_ring_bins layout="${layout}" camera="${camera}" sensor="${sensor}"
+                                 index="0"/>
+  </xacro:macro>
+
+  <xacro:macro name="openfactory_ring_bins" params="layout camera sensor index">
+    <xacro:if value="${index &lt; layout['n']}">
+      <xacro:property name="item" value="${layout['bins'][index]}"/>
+      <xacro:property name="mount" value="${layout['camera_mount']}"/>
+      <xacro:openfactory_bin_at
+        link="${item['name']}" parent="table"
+        inner_size="${layout['bin_inner_size']}" wall="${layout['bin_wall']}"
+        xyz="${item['xy'][0]} ${item['xy'][1]} ${layout['bin_wall']}" rpy="0 0 ${item['yaw']}"/>
+      <!-- the camera hangs above its bin, image axes along the bin axes -->
+      <xacro:openfactory_camera_at
+        prefix="${item['camera_prefix']}" parent="${item['name']}" camera="${camera}"
+        xyz="${mount['xyz'][0]} ${mount['xyz'][1]} ${mount['xyz'][2]}"
+        rpy="${mount['rpy'][0]} ${mount['rpy'][1]} ${mount['rpy'][2]}"
+        topic="${item['camera_topic']}"
+        rate_hz="${layout['camera_rate_hz'] or camera['image']['rate_hz']}" sensor="${sensor}"/>
+      <xacro:openfactory_ring_bins layout="${layout}" camera="${camera}" sensor="${sensor}"
+                                   index="${index + 1}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- One UR arm with its gripper and its ros2_control hardware per entry of layout['arms'] -->
+  <xacro:macro name="openfactory_ring_arms" params="layout gripper ur_type index">
+    <xacro:if value="${index &lt; layout['n']}">
+      <xacro:property name="arm" value="${layout['arms'][index]}"/>
+      <xacro:property name="config_dir" value="$(find ur_description)/config/${ur_type}"/>
+      <xacro:ur_robot
+        name="${arm['name']}"
+        tf_prefix="${arm['prefix']}"
+        parent="world"
+        joint_limits_parameters_file="${config_dir}/joint_limits.yaml"
+        kinematics_parameters_file="${config_dir}/default_kinematics.yaml"
+        physical_parameters_file="${config_dir}/physical_parameters.yaml"
+        visual_parameters_file="${config_dir}/visual_parameters.yaml"
+        force_abs_paths="true">
+        <origin xyz="${arm['xy'][0]} ${arm['xy'][1]} ${layout['table']['height'] + layout['mount_z']}"
+                rpy="0 0 ${arm['yaw']}"/>
+      </xacro:ur_robot>
+      <xacro:openfactory_gripper parent="${arm['prefix']}tool0" gripper="${gripper}"
+                                 prefix="${arm['prefix']}"/>
+      <xacro:ur_ros2_control name="${arm['name']}" tf_prefix="${arm['prefix']}"/>
+      <xacro:openfactory_gripper_ros2_control gripper="${gripper}" prefix="${arm['prefix']}"/>
+      <xacro:openfactory_ring_arms layout="${layout}" gripper="${gripper}" ur_type="${ur_type}"
+                                   index="${index + 1}"/>
+    </xacro:if>
+  </xacro:macro>
+</robot>

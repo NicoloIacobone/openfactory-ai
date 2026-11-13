@@ -22,13 +22,13 @@
   </xacro:macro>
 
   <!-- side: 1 for the left finger (+y), -1 for the right finger (-y) -->
-  <xacro:macro name="openfactory_finger" params="name side g">
+  <xacro:macro name="openfactory_finger" params="name side g prefix:=''">
     <xacro:property name="f" value="${g['finger']}"/>
     <xacro:property name="palm_z" value="${g['palm']['size'][2]}"/>
     <!-- link frame on the inner pad face, at the palm bottom; the box extends outwards and down -->
     <xacro:property name="box_xyz" value="0 ${side * f['size'][1] / 2} ${f['size'][2] / 2}"/>
 
-    <link name="${name}_finger">
+    <link name="${prefix}${name}_finger">
       <visual>
         <xacro:openfactory_box_geometry size="${f['size']}" xyz="${box_xyz}"/>
         <material name="gripper_dark">
@@ -41,29 +41,30 @@
       <xacro:openfactory_box_inertial mass="${f['mass']}" size="${f['size']}" xyz="${box_xyz}"/>
     </link>
 
-    <joint name="${name}_finger_joint" type="prismatic">
-      <parent link="gripper_palm"/>
-      <child link="${name}_finger"/>
+    <joint name="${prefix}${name}_finger_joint" type="prismatic">
+      <parent link="${prefix}gripper_palm"/>
+      <child link="${prefix}${name}_finger"/>
       <origin xyz="0 0 ${palm_z}" rpy="0 0 0"/>
       <axis xyz="0 ${side} 0"/>
       <limit lower="${-f['limit_margin']}" upper="${f['stroke'] + f['limit_margin']}"
              effort="${f['effort']}" velocity="${f['velocity']}"/>
       <xacro:if value="${side == -1}">
-        <mimic joint="left_finger_joint" multiplier="1" offset="0"/>
+        <mimic joint="${prefix}left_finger_joint" multiplier="1" offset="0"/>
       </xacro:if>
     </joint>
 
-    <gazebo reference="${name}_finger">
+    <gazebo reference="${prefix}${name}_finger">
       <mu1>${f['friction']}</mu1>
       <mu2>${f['friction']}</mu2>
     </gazebo>
   </xacro:macro>
 
-  <xacro:macro name="openfactory_gripper" params="parent gripper">
+  <!-- prefix: put before every link and joint name (ring of N arms: `arm_<i>_`) -->
+  <xacro:macro name="openfactory_gripper" params="parent gripper prefix:=''">
     <xacro:property name="palm" value="${gripper['palm']}"/>
     <xacro:property name="palm_xyz" value="0 0 ${palm['size'][2] / 2}"/>
 
-    <link name="gripper_palm">
+    <link name="${prefix}gripper_palm">
       <visual>
         <xacro:openfactory_box_geometry size="${palm['size']}" xyz="${palm_xyz}"/>
         <material name="gripper_grey">
@@ -76,37 +77,37 @@
       <xacro:openfactory_box_inertial mass="${palm['mass']}" size="${palm['size']}" xyz="${palm_xyz}"/>
     </link>
 
-    <joint name="gripper_mount_joint" type="fixed">
+    <joint name="${prefix}gripper_mount_joint" type="fixed">
       <parent link="${parent}"/>
-      <child link="gripper_palm"/>
+      <child link="${prefix}gripper_palm"/>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </joint>
 
-    <xacro:openfactory_finger name="left" side="1" g="${gripper}"/>
-    <xacro:openfactory_finger name="right" side="-1" g="${gripper}"/>
+    <xacro:openfactory_finger name="left" side="1" g="${gripper}" prefix="${prefix}"/>
+    <xacro:openfactory_finger name="right" side="-1" g="${gripper}" prefix="${prefix}"/>
 
-    <link name="gripper_tcp"/>
-    <joint name="gripper_tcp_joint" type="fixed">
+    <link name="${prefix}gripper_tcp"/>
+    <joint name="${prefix}gripper_tcp_joint" type="fixed">
       <parent link="${parent}"/>
-      <child link="gripper_tcp"/>
+      <child link="${prefix}gripper_tcp"/>
       <origin xyz="0 0 ${gripper['tcp_offset']}" rpy="0 0 0"/>
     </joint>
   </xacro:macro>
 
   <!-- Gazebo hardware for the fingers: the right finger is a mimic joint (no command interface) -->
-  <xacro:macro name="openfactory_gripper_ros2_control" params="gripper">
-    <ros2_control name="gripper" type="system">
+  <xacro:macro name="openfactory_gripper_ros2_control" params="gripper prefix:=''">
+    <ros2_control name="${prefix}gripper" type="system">
       <hardware>
         <plugin>gz_ros2_control/GazeboSimSystem</plugin>
       </hardware>
-      <joint name="left_finger_joint">
+      <joint name="${prefix}left_finger_joint">
         <command_interface name="position"/>
         <state_interface name="position">
           <param name="initial_value">${gripper['finger']['stroke']}</param>
         </state_interface>
         <state_interface name="velocity"/>
       </joint>
-      <joint name="right_finger_joint">
+      <joint name="${prefix}right_finger_joint">
         <state_interface name="position">
           <param name="initial_value">${gripper['finger']['stroke']}</param>
         </state_interface>

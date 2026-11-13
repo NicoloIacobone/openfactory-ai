@@ -39,4 +39,41 @@
       <origin xyz="${txyz[0]} ${txyz[1]} ${txyz[2] + sz}" rpy="0 0 0"/>
     </joint>
   </xacro:macro>
+
+  <!-- Round table of the ring of N arms (D-020): a solid disc centred on `parent`, top
+       surface at `height`. The `table` frame is the centre of the top surface. -->
+  <xacro:macro name="openfactory_round_table" params="parent radius height">
+    <xacro:property name="mass" value="50.0"/>
+    <xacro:property name="side" value="${mass * (3 * radius * radius + height * height) / 12}"/>
+
+    <link name="table">
+      <visual>
+        <origin xyz="0 0 ${-height / 2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${radius}" length="${height}"/>
+        </geometry>
+        <material name="table_grey">
+          <color rgba="0.6 0.6 0.6 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${-height / 2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${radius}" length="${height}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 ${-height / 2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${side}" ixy="0" ixz="0" iyy="${side}" iyz="0"
+                 izz="${mass * radius * radius / 2}"/>
+      </inertial>
+    </link>
+
+    <joint name="table_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="table"/>
+      <origin xyz="0 0 ${height}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
 </robot>

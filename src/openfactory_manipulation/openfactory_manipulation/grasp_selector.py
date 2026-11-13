@@ -68,13 +68,17 @@ class GraspSelector:
             return 'lift_blocked', None
         return None, joints
 
-    def select(self, objects, bin_pose, inner_size, excluded=lambda grasp: False, failures=()):
+    def select(self, objects, bin_pose, inner_size, excluded=lambda grasp: False, failures=(),
+               priority=None):
         """Rank the feasible grasps of a view.
 
         `objects`: core.grasps.SceneObject list in the frame of the bin at world pose
         `bin_pose`, of inner size `inner_size`; `excluded(grasp)` is True for candidates the
         caller does not want tried again; `failures`: [(x, y, finger_yaw)] of the grasps that
-        failed in this scene. Returns {'ranked': [candidate], 'candidates': [candidate],
+        failed in this scene; `priority(grasp)`: an order between objects that the task
+        imposes (lower first; the relay loop takes the object that waited longest): it comes
+        before the ranking, which then orders the grasps of equal priority, and like the
+        ranking it only orders feasible candidates. Returns {'ranked': [candidate], 'candidates': [candidate],
         'candidates_total', 'candidates_rejected': {reason: count}, 'strategy'}; a candidate
         is a dict with the grasp, its features, its rejection reason or score and, when
         feasible, the validated pre-grasp joints and the gripper_tcp world pose.
@@ -105,9 +109,12 @@ class GraspSelector:
                 candidate['p_success'] = self.ranker.success_probability(candidate)
                 candidates.append(candidate)
 
+        def first(candidate):
+            return 0 if priority is None else priority(candidate['grasp'])
+
         feasible = []
         for candidate in sorted((x for x in candidates if x['reason'] is None),
-                                key=lambda x: -x['prior']):
+                                key=lambda x: (first(x), -x['prior'])):
             if len(feasible) >= self.cfg['selection']['max_feasible']:
                 candidate['reason'] = NOT_EVALUATED
                 continue
@@ -126,7 +133,7 @@ class GraspSelector:
         for candidate in candidates:
             if candidate['reason'] not in (None, NOT_EVALUATED):
                 rejected[candidate['reason']] = rejected.get(candidate['reason'], 0) + 1
-        return {'ranked': sorted(feasible, key=lambda x: -x['score']),
+        return {'ranked': sorted(feasible, key=lambda x: (first(x), -x['score'])),
                 'candidates': candidates,
                 'candidates_total': len(candidates),
                 'candidates_rejected': rejected,

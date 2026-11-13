@@ -64,3 +64,23 @@ def test_the_default_ranking_has_its_model():
     assert weights['strategy'] in ranking.STRATEGIES
     if weights['strategy'] == 'learned':
         ranking.Ranker(weights, ranking.load_model(PACKAGE / 'config' / weights['model']))
+
+
+def test_relay_parameters_are_consistent():
+    """Ring of N arms (D-021): a full parked configuration, a place margin that keeps the
+    widest catalog object off what is seen in the destination bin, and an arrival radius that
+    cannot take an object that was already there for the one handed over."""
+    relay, place = CONFIG['relay'], CONFIG['place']
+    assert len(relay['park_joints']) == 6
+    assert relay['park_joints'] != CONFIG['ready_joints']
+    widest = max(math.hypot(*bounding_box(spec)[:2]) / 2 for spec in CATALOG['objects'].values())
+    assert relay['place_margin'] >= widest
+    # a place point counts as free only with every object farther than the margin from it
+    assert relay['arrival_radius'] < relay['place_margin']
+    assert relay['max_consecutive_failures'] >= 1
+    # two neighbouring place points can both be free and both be used
+    from openfactory_manipulation.core import relay as policy
+    from openfactory_manipulation.core.grasps import SceneObject
+    slots = place['slots']
+    box = SceneObject(0, 'cube', 1.0, slots[0][0], slots[0][1], 0.0, (0.05, 0.05, 0.05))
+    assert len(policy.free_slots(slots, [box], relay['place_margin'])) == len(slots) - 1

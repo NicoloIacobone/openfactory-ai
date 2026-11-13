@@ -86,6 +86,21 @@ task:                                # bin-picking loop (phase 4, D-017)
   match_radius: 0.02                 # m: same object between two views, or still where it was
   match_angle: 0.26                  # rad: same finger direction (a failed grasp is not repeated)
 
+relay:                               # ring of N arms (phase 6, D-020, D-021)
+  # Arms that are not working stand upright above their own base, clear of every bin, camera
+  # view and neighbour: only the arm whose turn it is goes to `ready_joints`. With two arms
+  # `ready_joints` puts both tools at the same point, the centre of the ring.
+  park_joints: [0.0, -1.5707, 0.0, -1.5707, 0.0, 0.0]
+  place_margin: 0.045                # m, a place point is free when every object seen in the
+                                     # destination bin is this far from it, footprint circle
+                                     # to point: the half diagonal of the widest catalog
+                                     # object (0.039) and the measured shift of a released
+                                     # object (median 4.5 mm, E-004). MoveIt has the last word
+  arrival_radius: 0.03               # m, the handed-over object must be seen this close to
+                                     # its place point (measured: 95 % within 12 mm, E-004)
+  max_consecutive_failures: 6        # failed handovers in a row, over all arms, before the
+                                     # loop gives up
+
 timeouts:
   server_s: 10.0                     # waiting for MoveIt / controllers
   action_s: 60.0                     # one planning or execution request

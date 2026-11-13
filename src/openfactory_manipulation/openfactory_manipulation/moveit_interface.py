@@ -2,8 +2,13 @@
 
 Every call blocks by spinning the node it was given, so the owner must not spin that node
 elsewhere. Planning and execution are separate calls, so their times are measured separately.
+
+One interface drives one arm (`names`, by default the arm of the single-arm cell). In the ring
+of N arms `for_arm` gives the interface of another arm of the same move_group: it shares the
+node, TF, the joint states and the planning-scene world, and differs in the arm's names.
 """
 
+import copy
 import time
 
 import rclpy
@@ -23,6 +28,7 @@ from tf2_ros import Buffer, TransformListener
 
 from . import constants as c
 from .core.objects import bounding_box
+from .names import CELL
 from .core.pick_place import MOVEIT_SUCCESS
 
 
@@ -52,10 +58,11 @@ def collision_object(object_id, spec, pose, operation=CollisionObject.ADD):
 
 class MoveItInterface:
 
-    def __init__(self, node, config):
+    def __init__(self, node, config, names=CELL):
         self.node = node
         self.cfg = config
-        self.latest_joints = None
+        self.names = names
+        self.joint_positions = {}     # latest position of every joint; shared between arms
         self.tf_buffer = Buffer()
         # no spin thread: TF arrives while this node spins in the blocking calls
         self.tf_listener = TransformListener(self.tf_buffer, node, spin_thread=False)
@@ -63,21 +70,37 @@ class MoveItInterface:
             JointState, c.JOINT_STATES_TOPIC, self._on_joint_state, 10)
         self.move_client = ActionClient(node, MoveGroup, c.MOVE_ACTION)
         self.execute_client = ActionClient(node, ExecuteTrajectory, c.EXECUTE_ACTION)
-        self.gripper_client = ActionClient(node, GripperCommand, c.GRIPPER_ACTION)
+        self.gripper_client = ActionClient(node, GripperCommand, names.gripper_action)
         self.cartesian_client = node.create_client(GetCartesianPath, c.CARTESIAN_SERVICE)
         self.scene_client = node.create_client(ApplyPlanningScene, c.PLANNING_SCENE_SERVICE)
         self.ik_client = node.create_client(GetPositionIK, c.IK_SERVICE)
-        self.names = {
+        self.servers = {
             self.move_client: c.MOVE_ACTION, self.execute_client: c.EXECUTE_ACTION,
-            self.gripper_client: c.GRIPPER_ACTION, self.cartesian_client: c.CARTESIAN_SERVICE,
+            self.gripper_client: names.gripper_action, self.cartesian_client: c.CARTESIAN_SERVICE,
             self.scene_client: c.PLANNING_SCENE_SERVICE, self.ik_client: c.IK_SERVICE,
         }
-        self.world_ids = set()        # collision objects put in the world by set_objects
+        # collision objects put in the world by set_objects; shared between arms
+        self.world_ids = set()
+
+    def for_arm(self, names):
+        """The interface of another arm of the same move_group (ring of N arms)."""
+        other = copy.copy(self)       # same node, clients, TF buffer, joints and world ids
+        other.names = names
+        other.gripper_client = ActionClient(self.node, GripperCommand, names.gripper_action)
+        other.servers = {client: name for client, name in self.servers.items()
+                         if client is not self.gripper_client}
+        other.servers[other.gripper_client] = names.gripper_action
+        return other
+
+    @property
+    def latest_joints(self):
+        """{joint: position} of the latest joint states, None before the first message."""
+        return self.joint_positions or None
 
     # -- plumbing -------------------------------------------------------------------------
 
     def _on_joint_state(self, msg):
-        self.latest_joints = dict(zip(msg.name, msg.position))
+        self.joint_positions.update(zip(msg.name, msg.position))
 
     def _wait(self, future, timeout):
         rclpy.spin_until_future_complete(self.node, future, timeout_sec=timeout)
@@ -90,7 +113,7 @@ class MoveItInterface:
         timeout = self.cfg['timeouts']['action_s']
         handle = self._wait(client.send_goal_async(goal), self.cfg['timeouts']['server_s'])
         if not handle.accepted:
-            raise ManipulationError(f'goal rejected by {self.names[client]}')
+            raise ManipulationError(f'goal rejected by {self.servers[client]}')
         return self._wait(handle.get_result_async(), timeout).result
 
     def spin_for(self, seconds):
@@ -102,15 +125,17 @@ class MoveItInterface:
         timeout = self.cfg['timeouts']['server_s']
         for client in (self.move_client, self.execute_client, self.gripper_client):
             if not client.wait_for_server(timeout_sec=timeout):
-                raise ManipulationError(f'{self.names[client]} not available: is the cell up?')
+                raise ManipulationError(f'{self.servers[client]} not available: is the cell up?')
         for client in (self.cartesian_client, self.scene_client, self.ik_client):
             if not client.wait_for_service(timeout_sec=timeout):
-                raise ManipulationError(f'{self.names[client]} not available')
+                raise ManipulationError(f'{self.servers[client]} not available')
         end = time.monotonic() + timeout
-        while self.latest_joints is None and time.monotonic() < end:
+        wanted = (*self.names.joints, *self.names.finger_joints)
+        while (not all(name in self.joint_positions for name in wanted)
+               and time.monotonic() < end):
             rclpy.spin_once(self.node, timeout_sec=0.1)
-        if self.latest_joints is None:
-            raise ManipulationError(f'no {c.JOINT_STATES_TOPIC}')
+        if not all(name in self.joint_positions for name in wanted):
+            raise ManipulationError(f'no {c.JOINT_STATES_TOPIC} for {self.names.group}')
 
     def frame_pose(self, frame):
         """(xyz, quat) of `frame` in the world frame, from TF."""
@@ -125,17 +150,15 @@ class MoveItInterface:
                 (t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w))
 
     def finger_position(self):
-        return None if self.latest_joints is None else self.latest_joints.get(c.FINGER_JOINT)
+        return self.joint_positions.get(self.names.finger_joint)
 
     def jaw_opening(self):
         """Left + right finger position (m): the distance between the pads."""
-        if self.latest_joints is None:
-            return None
-        values = [self.latest_joints.get(name) for name in c.FINGER_JOINTS]
+        values = [self.joint_positions.get(name) for name in self.names.finger_joints]
         return None if None in values else sum(values)
 
     def arm_positions(self):
-        return [self.latest_joints[name] for name in c.ARM_JOINTS]
+        return [self.joint_positions[name] for name in self.names.joints]
 
     # -- planning and execution -----------------------------------------------------------
 
@@ -143,7 +166,7 @@ class MoveItInterface:
         p = self.cfg['planning']
         msg = MoveGroup.Goal()
         r = msg.request
-        r.group_name = c.ARM_GROUP
+        r.group_name = self.names.group
         r.pipeline_id = p['pipeline']
         r.num_planning_attempts = p['attempts']
         r.allowed_planning_time = p['planning_time_s']
@@ -162,21 +185,21 @@ class MoveItInterface:
         goal = Constraints(joint_constraints=[
             JointConstraint(joint_name=name, position=float(value), tolerance_above=tol,
                             tolerance_below=tol, weight=1.0)
-            for name, value in zip(c.ARM_JOINTS, positions)])
+            for name, value in zip(self.names.joints, positions)])
         return self._plan(goal)
 
     def plan_pose(self, tool0_pose):
         """Plan to a tool0 pose in the world frame: (error code, trajectory, planning s)."""
         p = self.cfg['planning']
         pose = to_pose(tool0_pose)
-        position = PositionConstraint(link_name=c.TOOL_LINK, weight=1.0)
+        position = PositionConstraint(link_name=self.names.tool_link, weight=1.0)
         position.header.frame_id = c.WORLD_FRAME
         sphere = SolidPrimitive(type=SolidPrimitive.SPHERE, dimensions=[p['position_tolerance']])
         position.constraint_region.primitives = [sphere]
         position.constraint_region.primitive_poses = [Pose(position=pose.position,
                                                            orientation=Quaternion(w=1.0))]
         orientation = OrientationConstraint(
-            link_name=c.TOOL_LINK, orientation=pose.orientation, weight=1.0,
+            link_name=self.names.tool_link, orientation=pose.orientation, weight=1.0,
             absolute_x_axis_tolerance=p['orientation_tolerance'],
             absolute_y_axis_tolerance=p['orientation_tolerance'],
             absolute_z_axis_tolerance=p['orientation_tolerance'])
@@ -189,15 +212,14 @@ class MoveItInterface:
         result = self._action(self.move_client, self._motion_request(goal))
         return result.error_code.val, result.planned_trajectory, time.monotonic() - start
 
-    @staticmethod
-    def robot_state(arm_joints, finger_position=None):
+    def robot_state(self, arm_joints, finger_position=None):
         """The current robot state with the arm at `arm_joints` and, if given, both fingers at
         `finger_position`: for requests about a state the robot is not in."""
-        names = list(c.ARM_JOINTS)
+        names = list(self.names.joints)
         positions = [float(v) for v in arm_joints]
         if finger_position is not None:
-            names += list(c.FINGER_JOINTS)
-            positions += [float(finger_position)] * len(c.FINGER_JOINTS)
+            names += list(self.names.finger_joints)
+            positions += [float(finger_position)] * len(self.names.finger_joints)
         state = RobotState(is_diff=True)
         state.joint_state.name = names
         state.joint_state.position = positions
@@ -208,10 +230,10 @@ class MoveItInterface:
         `seed_joints` with the fingers at `finger_position`: (error code, joints or None)."""
         request = GetPositionIK.Request()
         ik = request.ik_request
-        ik.group_name = c.ARM_GROUP
+        ik.group_name = self.names.group
         ik.robot_state = self.robot_state(seed_joints, finger_position)
         ik.avoid_collisions = True
-        ik.ik_link_name = c.TOOL_LINK
+        ik.ik_link_name = self.names.tool_link
         ik.pose_stamped.header.frame_id = c.WORLD_FRAME
         ik.pose_stamped.pose = to_pose(tool0_pose)
         ik.timeout = Duration(seconds=timeout_s).to_msg()
@@ -222,21 +244,21 @@ class MoveItInterface:
             return code, None
         solution = dict(zip(response.solution.joint_state.name,
                             response.solution.joint_state.position))
-        return code, [solution[name] for name in c.ARM_JOINTS]
+        return code, [solution[name] for name in self.names.joints]
 
-    @staticmethod
-    def end_joints(trajectory):
+    def end_joints(self, trajectory):
         """Arm configuration at the end of a planned trajectory."""
         joint_trajectory = trajectory.joint_trajectory
         last = dict(zip(joint_trajectory.joint_names, joint_trajectory.points[-1].positions))
-        return [last[name] for name in c.ARM_JOINTS]
+        return [last[name] for name in self.names.joints]
 
     def plan_cartesian(self, tool0_pose, start_state=None):
         """Straight tool0 line from the current state, or from `start_state` (robot_state):
         (error code, trajectory, fraction, s)."""
         cart = self.cfg['cartesian']
         request = GetCartesianPath.Request(
-            group_name=c.ARM_GROUP, link_name=c.TOOL_LINK, waypoints=[to_pose(tool0_pose)],
+            group_name=self.names.group, link_name=self.names.tool_link,
+            waypoints=[to_pose(tool0_pose)],
             max_step=cart['max_step'], jump_threshold=0.0, avoid_collisions=True,
             max_velocity_scaling_factor=cart['velocity_scaling'],
             max_acceleration_scaling_factor=cart['acceleration_scaling'])
@@ -297,7 +319,8 @@ class MoveItInterface:
             remove.world.collision_objects = [CollisionObject(id=object_id,
                                                               operation=CollisionObject.REMOVE)]
             self._apply(remove)       # fails only if the object is already gone
-        self.world_ids = set(objects)
+        self.world_ids.clear()
+        self.world_ids.update(objects)
         if not objects:
             return True
         scene = PlanningScene()
@@ -319,7 +342,7 @@ class MoveItInterface:
         remove.world.collision_objects = [CollisionObject(operation=CollisionObject.REMOVE)]
         detached = self._apply(detach)
         removed = self._apply(remove)
-        self.world_ids = set()
+        self.world_ids.clear()
         return detached and removed
 
     def attach_object(self, object_id):
@@ -328,8 +351,8 @@ class MoveItInterface:
         Attaching by id an object that exists in the world moves it out of the world, so the
         diff must not also remove it (that second step would fail the whole request).
         """
-        attached = AttachedCollisionObject(link_name=c.TCP_LINK,
-                                           touch_links=list(c.GRIPPER_TOUCH_LINKS))
+        attached = AttachedCollisionObject(link_name=self.names.tcp_link,
+                                           touch_links=list(self.names.touch_links))
         attached.object.id = object_id
         attached.object.operation = CollisionObject.ADD
         scene = PlanningScene()
@@ -342,7 +365,7 @@ class MoveItInterface:
         Returns True if either step succeeded: MoveIt reports a failure for whichever of the two
         finds nothing to remove (detaching puts the object back into the world first).
         """
-        attached = AttachedCollisionObject(link_name=c.TCP_LINK)
+        attached = AttachedCollisionObject(link_name=self.names.tcp_link)
         attached.object.id = object_id
         attached.object.operation = CollisionObject.REMOVE
         detach = PlanningScene()

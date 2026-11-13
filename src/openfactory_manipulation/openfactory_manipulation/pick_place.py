@@ -31,11 +31,16 @@ class StageFailed(Exception):
 
 class PickPlace:
 
-    def __init__(self, node, config, catalog, gripper):
+    def __init__(self, node, config, catalog, gripper, moveit=None,
+                 source_frame=c.INPUT_BIN_FRAME, destination_frame=c.OUTPUT_BIN_FRAME):
+        """`moveit`: the interface of the arm to drive (default: the arm of the single-arm
+        cell); `source_frame`, `destination_frame`: the bins it picks from and places into."""
         self.cfg = config
         self.catalog = catalog
         self.gripper_cfg = gripper
-        self.moveit = MoveItInterface(node, config)
+        self.moveit = moveit or MoveItInterface(node, config)
+        self.source_frame = source_frame
+        self.destination_frame = destination_frame
         self.stages = []
         self.place_index = None
         self.released = None
@@ -95,8 +100,13 @@ class PickPlace:
     def go_ready(self):
         """Move to the ready configuration outside a cycle (arm clear of the input bin, e.g.
         before a camera view); False if planning or execution fails."""
+        return self.go_joints(self.cfg['ready_joints'])
+
+    def go_joints(self, joints):
+        """Free-space move to an arm configuration outside a cycle; False if planning or
+        execution fails."""
         try:
-            code, trajectory, _ = self.moveit.plan_joints(self.cfg['ready_joints'])
+            code, trajectory, _ = self.moveit.plan_joints(joints)
             if code != core.MOVEIT_SUCCESS:
                 return False
             code, _ = self.moveit.execute(trajectory)
@@ -109,7 +119,8 @@ class PickPlace:
         inside a bin, where a free plan to ready grazes the walls and is refused. False if the
         arm does not reach ready."""
         try:
-            up = core.raised(self.moveit.frame_pose(c.TOOL_LINK), self.cfg['grasp']['lift_height'])
+            up = core.raised(self.moveit.frame_pose(self.moveit.names.tool_link),
+                             self.cfg['grasp']['lift_height'])
             code, trajectory, _, _ = self.moveit.plan_cartesian(up)
             if code == core.MOVEIT_SUCCESS:
                 self.moveit.execute(trajectory)
@@ -125,8 +136,8 @@ class PickPlace:
         spec = self.catalog['objects'][object_type]
 
         def plans():
-            in_bin = self.moveit.frame_pose(c.INPUT_BIN_FRAME)
-            out_bin = self.moveit.frame_pose(c.OUTPUT_BIN_FRAME)
+            in_bin = self.moveit.frame_pose(self.source_frame)
+            out_bin = self.moveit.frame_pose(self.destination_frame)
             params = {**self.cfg['grasp'], **self.cfg['place']}
             object_pose = core.object_pose_in_bin(in_bin, x, y, yaw, spec)
             return [core.plan_pick_place(object_pose, out_bin, self.cfg['place']['xy'], spec,
@@ -136,7 +147,7 @@ class PickPlace:
         return {
             'object_type': object_type,
             'object_id': object_id,
-            'object_pose': {'frame': c.INPUT_BIN_FRAME, 'x': x, 'y': y, 'yaw': yaw,
+            'object_pose': {'frame': self.source_frame, 'x': x, 'y': y, 'yaw': yaw,
                             'source': source},
             **result,
         }
@@ -154,7 +165,7 @@ class PickPlace:
         held (default `grasp.width_tolerance`); wider for a width that is only measured.
         """
         def plans():
-            out_bin = self.moveit.frame_pose(c.OUTPUT_BIN_FRAME)
+            out_bin = self.moveit.frame_pose(self.destination_frame)
             params = {**self.cfg['grasp'], **self.cfg['place']}
             return [core.plan_grasp(grasp_tcp, object_pose, width, height, out_bin, xy,
                                     self.gripper_cfg, params, preshape=True)
@@ -332,7 +343,7 @@ class PickPlace:
             result, _ = self.moveit.gripper(opening, self.cfg['grasp']['max_effort'])
             steps['open'] = bool(result.reached_goal)
             steps['scene_clear'] = self.moveit.remove_object(object_id)
-            tool0 = self.moveit.frame_pose(c.TOOL_LINK)
+            tool0 = self.moveit.frame_pose(self.moveit.names.tool_link)
             up = core.raised(tool0, self.cfg['grasp']['lift_height'])
             code, trajectory, fraction, _ = self.moveit.plan_cartesian(up)
             steps['rise_fraction'] = fraction

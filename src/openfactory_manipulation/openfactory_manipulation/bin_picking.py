@@ -59,15 +59,23 @@ def object_record(obj):
 
 class BinPicking:
 
-    def __init__(self, node, config, catalog, gripper, cell):
+    def __init__(self, node, config, catalog, gripper, cell, moveit=None,
+                 source_frame=c.INPUT_BIN_FRAME, destination_frame=c.OUTPUT_BIN_FRAME,
+                 client=None):
+        """By default the single-arm cell. In the ring of N arms (relay.RelayLoop) one
+        instance works for each arm: `moveit` is that arm's interface, `source_frame` and
+        `destination_frame` its two bins (every bin has the inner size of the cell's input
+        bin), `client` the perception of its source bin."""
         self.node = node
         self.cfg = config
         self.catalog = catalog
         self.inner_size = cell['bins'][c.INPUT_BIN]['inner_size']
-        self.runner = PickPlace(node, config, catalog, gripper)
+        self.source_frame = source_frame
+        self.runner = PickPlace(node, config, catalog, gripper, moveit, source_frame,
+                                destination_frame)
         self.moveit = self.runner.moveit
         self.selector = GraspSelector(self.moveit, config, catalog, gripper, load_model(config))
-        self.client = PerceptionClient(node)
+        self.client = client or PerceptionClient(node)
         self.state = task.TaskState()
         self.view = None                         # latest view of the input bin, see _look
         self.escapes = 0                         # times the arm had to leave straight up
@@ -108,7 +116,7 @@ class BinPicking:
             if fresh is None:
                 return None
             hypotheses, stamp = fresh
-            objects = grasps.scene_objects(hypotheses, self.moveit.frame_pose(c.INPUT_BIN_FRAME))
+            objects = grasps.scene_objects(hypotheses, self.moveit.frame_pose(self.source_frame))
         except ManipulationError:
             return None
         return {'objects': objects, 'hypotheses': hypotheses, 'stamp': stamp,
@@ -117,14 +125,19 @@ class BinPicking:
     def _spec(self, obj):
         return self.catalog['objects'].get(obj.class_id) or task.unknown_spec(obj.size)
 
-    def _sync_scene(self, view):
-        """Planning scene = every object of the view, plus what the cell placed before."""
+    def _sync_scene(self, view, obstacles=None):
+        """Planning scene = every object of the view, plus what stands in the destination
+        bin: what the cell placed before, or `obstacles` ({id: (spec, world pose)}) when the
+        caller sees that bin."""
         lift = self.cfg['scene']['object_clearance']
         by_index = {h_index: h for h_index, h in enumerate(view['hypotheses'])}
         scene = {}
         for obj in view['objects']:
             h = by_index[obj.index]
             scene[f'in_{obj.index}'] = (self._spec(obj), core.raised((h['xyz'], h['quat']), lift))
+        if obstacles is not None:
+            scene.update(obstacles)
+            return self.moveit.set_objects(scene)
         padding = self.cfg['place']['obstacle_padding']
         for slot, placed in self.state.placed.items():
             scene[f'out_{slot}'] = (task.obstacle_spec(placed['spec'], padding), placed['pose'])
@@ -132,9 +145,15 @@ class BinPicking:
 
     # -- one attempt ---------------------------------------------------------------------
 
-    def step(self):
+    def step(self, destination=None, priority=None):
         """One look-select-pick-place-verify attempt.
 
+        `destination`: None when the destination bin is not observed (single-arm cell): the
+        place points are the configured grid minus what the cell remembers placing. When the
+        caller sees the destination bin (ring of N arms), {'slots': [(index, xy)], the free
+        place points in the order to try them, 'obstacles': {id: (spec, world pose)}, what
+        stands in that bin}. `priority(obj)`: an order between the objects of the view, lower
+        first, that comes before the grasp ranking (grasp_selector.select); None: ranking only.
         Returns {'done', 'end_reason', 'attempt'}: `attempt` is the record of the pick that
         was tried (None when the scene ended before one), `end_reason` is set when `done`.
         """
@@ -147,19 +166,25 @@ class BinPicking:
         pickable = self.selector.pickable(objects)
         if self.state.max_attempts is None:
             self.state.max_attempts = task.attempt_budget(len(objects), limits)
-        slots = task.free_slots(self.cfg['place']['slots'], self.state.placed)
+        if destination is None:
+            slots = task.free_slots(self.cfg['place']['slots'], self.state.placed)
+        else:
+            slots = list(destination['slots'])
         reason = task.end_reason(objects, pickable, self.state, slots, limits)
         if reason is not None:
             return self._end(reason, view)
 
         start = time.monotonic()
+        by_object = {obj.index: obj for obj in objects}
         try:
-            if not self._sync_scene(view):
+            if not self._sync_scene(view, destination and destination['obstacles']):
                 return self._end('no_view', view)
             selection = self.selector.select(
-                objects, self.moveit.frame_pose(c.INPUT_BIN_FRAME), self.inner_size,
+                objects, self.moveit.frame_pose(self.source_frame), self.inner_size,
                 excluded=lambda grasp: task.excluded(grasp, self.state.failures, limits),
-                failures=self.state.failures)
+                failures=self.state.failures,
+                priority=None if priority is None else
+                lambda grasp: priority(by_object[grasp.object_index]))
         except ManipulationError:
             return self._end('no_view', view)
         selection_s = time.monotonic() - start
@@ -189,7 +214,8 @@ class BinPicking:
         # The place point is taken as soon as the object left the input bin on its way there,
         # also when the cycle then failed: an object lost over the output bin lies somewhere
         # around that point, and the next one must not be set down on it.
-        if manipulation['target_place_pose'] is not None and removed is not False:
+        if (destination is None and manipulation['target_place_pose'] is not None
+                and removed is not False):
             xyz, quat = manipulation['target_place_pose']
             self.state.placed[slot[0]] = {'spec': self._spec(target),
                                           'pose': (tuple(xyz), tuple(quat))}

@@ -33,11 +33,12 @@ def hypotheses_from_msg(msg):
 
 class PerceptionClient:
 
-    def __init__(self, node):
+    def __init__(self, node, topic=c.OBJECTS_TOPIC):
         self.node = node
+        self.topic = topic
         self.latest = None
         self.objects_sub = node.create_subscription(
-            Detection3DArray, c.OBJECTS_TOPIC, self._on_objects, 10)
+            Detection3DArray, topic, self._on_objects, 10)
 
     def _on_objects(self, msg):
         self.latest = msg

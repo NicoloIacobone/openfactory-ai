@@ -5,6 +5,10 @@ geometry and the object catalog are fixed infrastructure read from openfactory_d
 Every depth frame gives one Detection3DArray in the world frame with the image stamp, empty when
 the bin is empty. The node sees whatever is in the bin volume below `max_object_height`:
 consumers use frames taken while the arm is clear of the input bin.
+
+The bin it looks at is the parameter `bin_frame` (default `input_bin`). In the ring of N arms
+one instance runs per bin, in the namespace of the bin, on that bin's camera; every bin has the
+inner size of the cell's input bin (openfactory_description/ring.py).
 """
 
 import math
@@ -64,6 +68,7 @@ class ScenePerception(Node):
         catalog = yaml.safe_load((description / 'objects.yaml').read_text())
         cell = yaml.safe_load((description / 'cell.yaml').read_text())
         self.inner_size = cell['bins'][c.INPUT_BIN]['inner_size']
+        self.bin_frame = self.declare_parameter('bin_frame', c.INPUT_BIN_FRAME).value
         self.models = primitives.shape_models(catalog, self.cfg)
 
         self.intrinsics = None
@@ -82,7 +87,8 @@ class ScenePerception(Node):
         # the colour image is only needed, and only bridged, while someone views the debug image
         self.debug_timer = self.create_timer(1.0, self._watch_debug_image)
         self.get_logger().info(
-            f'scene_perception: bin {self.inner_size}, shapes {[m.name for m in self.models]}')
+            f'scene_perception: bin {self.bin_frame} {self.inner_size}, '
+            f'shapes {[m.name for m in self.models]}')
 
     def _on_info(self, msg):
         self.intrinsics = camera.intrinsics_from_k(msg.k, self.cfg['principal_point_offset'])
@@ -113,8 +119,8 @@ class ScenePerception(Node):
             self.get_logger().error(f'unexpected depth encoding {msg.encoding}', once=True)
             return
         stamp = Time.from_msg(msg.header.stamp)
-        bin_from_optical = self._lookup(c.INPUT_BIN_FRAME, msg.header.frame_id, stamp)
-        world_from_bin = self._lookup(c.WORLD_FRAME, c.INPUT_BIN_FRAME, stamp)
+        bin_from_optical = self._lookup(self.bin_frame, msg.header.frame_id, stamp)
+        world_from_bin = self._lookup(c.WORLD_FRAME, self.bin_frame, stamp)
         if bin_from_optical is None or world_from_bin is None:
             return
 
@@ -142,7 +148,7 @@ class ScenePerception(Node):
     def _publish_debug(self, msg, detections, debug, bin_from_optical):
         if self.points_pub.get_subscription_count() > 0:
             cloud = np.column_stack((debug.points, debug.labels)).astype(np.float32)
-            header = Header(stamp=msg.header.stamp, frame_id=c.INPUT_BIN_FRAME)
+            header = Header(stamp=msg.header.stamp, frame_id=self.bin_frame)
             self.points_pub.publish(point_cloud2.create_cloud(header, CLOUD_FIELDS, cloud))
         color = self.color
         if color is None or self.image_pub.get_subscription_count() == 0:

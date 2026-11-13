@@ -3,7 +3,7 @@
 <package format="3">
   <name>openfactory_bringup</name>
   <version>0.1.0</version>
-  <description>Whole-system launch files for the OpenFactory cell.</description>
+  <description>Whole-system launch files for the OpenFactory cell and the ring of N arms.</description>
   <maintainer email="etaspam12@gmail.com">Nico</maintainer>
   <license>Apache-2.0</license>
 
@@ -12,6 +12,7 @@
   <exec_depend>openfactory_simulation</exec_depend>
   <exec_depend>openfactory_moveit_config</exec_depend>
   <exec_depend>openfactory_perception</exec_depend>
+  <exec_depend>openfactory_description</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

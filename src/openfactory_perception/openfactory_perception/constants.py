@@ -12,6 +12,11 @@ OBJECTS_TOPIC = '/perception/objects'
 DEBUG_POINTS_TOPIC = '/perception/debug/points'
 DEBUG_IMAGE_TOPIC = '/perception/debug/image'
 
+# every topic of scene_perception: a launch moves them into the namespace of a bin when the
+# cell has one camera per bin (ring of N arms)
+TOPICS = (DEPTH_TOPIC, COLOR_TOPIC, CAMERA_INFO_TOPIC, OBJECTS_TOPIC, DEBUG_POINTS_TOPIC,
+          DEBUG_IMAGE_TOPIC)
+
 DESCRIPTION_PACKAGE = 'openfactory_description'
 INPUT_BIN = 'input'                       # key of the bin in cell.yaml `bins`
 UNKNOWN_CLASS = 'unknown'

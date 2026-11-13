@@ -1,12 +1,76 @@
 # Environment
 
-Audited environment and the stack selected from it. Re-audit and update this file whenever the VM or tool versions change.
+The current state of the Mac and the VM first, then the dated log of audits, installations and checks it comes from. Re-audit and update this file whenever the VM or tool versions change; the log is appended to, not rewritten.
 
-## Audit — 2026-10-28 (phase 0, first pass)
+## Current state (checked 2026-11-13)
+
+| Item | Value |
+|---|---|
+| Mac | MacBook Air M2, 8 GB RAM: repo, git, editor; no ROS |
+| Virtualizer | UTM 5.0.8 (QEMU backend), "Shared Network"; SSH alias `doppelvm` |
+| VM | Ubuntu 24.04.5 LTS aarch64, kernel 6.8.0-147, 4 cores, 3.8 GiB RAM + 3.8 GiB swap, 30 GB disk (15 GB free); shared with the `doppelbot` project |
+| GPU | virtio (`virgl`), OpenGL 2.1 only: Gazebo renders with Ogre 1, on the VM display (D-005) |
+| Python | 3.12.3 (system), NumPy 1.26.4, OpenCV 4.6.0 |
+| ROS 2 | Jazzy, `rmw_fastrtps_cpp` (default) |
+| apt packages installed for this project | phase 0: `ros-jazzy-ros-gz` 1.0.24 (Gazebo Sim 8.15), `ros-jazzy-moveit` 2.12.4, `mesa-utils`; phase 1: `ros-jazzy-ur-simulation-gz` 2.5.0, `ros-jazzy-ur-moveit-config` 3.9.0, `ros-jazzy-ur-robot-driver` 3.9.0 (needed by the vendor UR launch only). Nothing since. |
+| pip packages | none |
+
+Memory with the full cell (Gazebo server with the camera, MoveIt, depth model, perception, benchmark harness, GNOME session; no RViz): 1.5 GiB used, 2.4 GiB available, real-time factor ≈ 1.0, load average 3–4 on 4 cores (phase 5). RViz adds about 260 MB, the Gazebo GUI about 400 MB. Idle VM: 1.0 GiB used.
+
+### Stack
+
+| Area | Choice | Why |
+|---|---|---|
+| OS / ROS | Ubuntu 24.04 + ROS 2 Jazzy, as installed | Already working and healthy; no migration needed |
+| Simulator | Gazebo Harmonic (Sim 8.15) via `ros-jazzy-ros-gz`, render engine `ogre` (D-005) | Official Jazzy pairing, binary on aarch64; `ogre2` does not run on the virtio GPU |
+| Planning | MoveIt 2 2.12.4, OMPL via `openfactory_moveit_config` | Binary on aarch64; E-001 10/10 |
+| Robot | UR5e (D-004) | Full apt stack (description, Gazebo sim, MoveIt config) exists for Jazzy; Franka would need a source build |
+| Gripper | Project parallel-jaw gripper, `position_controllers/GripperActionController` (D-007) | No install; E-002 30/30 |
+| Camera | Gazebo `rgbd_camera` with D415 geometry, depth error model in `depth_sensor_model` (D-011) | Renders with Ogre 1 on the VM display; no install |
+| Perception | NumPy + OpenCV geometric baseline, `vision_msgs` output (D-012) | Already installed; 9 ms per frame |
+| Learned ranking | Logistic regression fitted with NumPy, inference in pure Python (D-019) | No install; selection time unchanged (0.035 s median) |
+
+### Repo access from the VM
+
+The Mac is the source of truth. UTM 5.0.8 (QEMU backend) offers a single VirtFS shared folder, so both projects live in `~/Desktop/nico/github_portfolio/ros_2_projects/` (`doppelbot/`, `openfactory-ai/`) and that folder is the share:
+
+| Mac | VM |
+|---|---|
+| `~/Desktop/nico/github_portfolio/ros_2_projects` | `/mnt/ros_2_projects` (9p, tag `share`, in `/etc/fstab`) |
+| `~/Desktop/nico/github_portfolio/ros_2_projects/openfactory-ai` | `/mnt/openfactory-ai` → symlink to `/mnt/ros_2_projects/openfactory-ai` |
+| `~/Desktop/nico/github_portfolio/ros_2_projects/doppelbot` | `/mnt/doppelbot` → symlink to `/mnt/ros_2_projects/doppelbot` |
+
+The colcon workspace lives outside the share, at `~/openfactory_ws` in the VM.
+
+The share is **read-only for the VM user**: files keep the Mac owner (uid 501, mode 755) and the VM user is uid 1000 (`access=client`), so `mkdir` fails with "Permission denied". Run outputs are written in the VM under `~/openfactory_data/` and copied to the repo's git-ignored `data/` from the Mac: `scp -r doppelvm:openfactory_data/trials/<run_id> data/trials/`.
+
+Status: verified 2026-10-28 (mount, symlinks, `doppelbot` build and 214 tests pass through the new paths); original fstab kept as `/etc/fstab.bak`.
+
+2026-11-10: on the Mac the share moved from `~/Desktop/nico/ros_2_projects` to `~/Desktop/nico/github_portfolio/ros_2_projects` (whole folder, same contents). The UTM shared folder must point to the new path; nothing changes inside the VM.
+
+### Operating the VM over SSH
+
+The assistant drives the VM from the Mac with full control (`CLAUDE.md`, "Environment"). What works, and the traps that each cost a failed round trip:
+
+- One-shot commands: `ssh doppelvm 'source /opt/ros/jazzy/setup.bash && source ~/openfactory_ws/install/setup.bash && <command>'`. A non-interactive shell loads neither ROS nor `.bashrc`.
+- The cell with the camera needs the VM desktop display even with `headless:=true` (D-005). Over SSH, set `DISPLAY=:0 XAUTHORITY=$(ls /run/user/$(id -u)/.mutter-Xwaylandauth.* | head -1)`. `camera:=false perception:=false` runs without a display.
+- Long-running programs run detached, so that the SSH session can end: `setsid nohup ros2 launch openfactory_bringup cell.launch.py headless:=true rviz:=false > ~/cell.log 2>&1 < /dev/null &`, inside the sourced command above and with the display variables.
+- A detached `setsid nohup python3 ...` does not inherit the sourced ROS environment (`No module named 'rclpy'`). Benchmarks go through `scripts/vm/run_benchmark.sh NAME <benchmark args>`, which sources ROS and the workspace, writes `~/NAME.log` and the exit code to `~/NAME.done`; `scripts/vm/run_chain.sh CHAIN "NAME|args" ...` runs several in a row (`~/CHAIN.progress`, `~/CHAIN.done`). Wait on the `.done` file.
+- Before a run, check that the cell is up (`ps -eo pid,etimes,comm | grep -E 'gz|move_group'`): the VM may have been restarted between sessions. Nodes read their YAML at start: after a config or code change, rebuild and relaunch the cell.
+- Stop processes by PID (`kill <pid>`). Never use `pkill -f` or `pgrep -f` with a pattern inside `ssh doppelvm '...'`: the pattern matches the remote shell's own command line, so `pkill` kills the SSH session (exit 255) and `pgrep` always finds a match.
+- A launch that aborts leaves `gz sim` and the `spawner` processes orphaned; kill them before relaunching.
+- `move_group` keeps the planning-scene objects of a process that ended. The bin-picking loop empties the world at every scene (D-017); other scripts must do the same.
+- Reading Gazebo's `/world/cell/dynamic_pose/info` (about 1 kHz) continuously from Python starves the process; sample it a few times per second (`GzScene.model_poses` from a thread).
+- The VM clock differs from the Mac's: compare elapsed times (`ps -o etimes`), not wall times.
+- `doppelbot` shares the VM: build and test it only with its venv active (`source ~/ros2_ws/.venv/bin/activate && python -m colcon ...`); the system `colcon` rewrites its shebangs and breaks its `kociemba` solver.
+
+## Log
+
+### Audit — 2026-10-28 (phase 0, first pass)
 
 Read-only inspection of the existing VM; nothing installed or changed.
 
-### Host
+#### Host
 
 | Item | Value |
 |---|---|
@@ -14,7 +78,7 @@ Read-only inspection of the existing VM; nothing installed or changed.
 | Virtualizer | UTM 5.0.8 (QEMU backend), "Shared Network" |
 | Existing share | 9p/VirtFS tag `share` → `/mnt/doppelbot` (the `doppelbot` project); only one share is possible. Since replaced, see "Repo access from the VM" |
 
-### VM
+#### VM
 
 | Item | Value |
 |---|---|
@@ -30,7 +94,7 @@ Read-only inspection of the existing VM; nothing installed or changed.
 | Gazebo | not installed (`gz` absent; only `gz-cmake/math/utils` vendor packages pulled in by ROS) |
 | MoveIt 2 | not installed |
 
-### Binary availability (apt, aarch64)
+#### Binary availability (apt, aarch64)
 
 | Package | Candidate |
 |---|---|
@@ -43,15 +107,15 @@ Read-only inspection of the existing VM; nothing installed or changed.
 | Franka description for Jazzy | no apt package found |
 | `python3-open3d` | none |
 
-## Installation — 2026-10-28 (phase 0)
+### Installation — 2026-10-28 (phase 0)
 
-### apt sources fix
+#### apt sources fix
 
 The first `apt install` failed with unmet dependencies (`krb5-multidev`, `libbsd-dev`): `/etc/apt/sources.list.d/ubuntu.sources` listed only `noble noble-security` (changed on 2026-10-27; the installer original `ubuntu.sources.curtin.orig` also had `noble-updates noble-backports`). Installed libraries came from `noble-updates`, so the matching `-dev` packages were not reachable.
 
 Fix: `Suites: noble noble-updates noble-security` (`noble-backports` not needed). Previous file kept as `ubuntu.sources.bak-2026-10-28`. The 27 upgradable packages from `noble-updates` were left as they are (no `apt upgrade`).
 
-### Installed
+#### Installed
 
 `sudo apt install ros-jazzy-ros-gz ros-jazzy-moveit mesa-utils`: 245 new packages, 0 upgraded, 0 removed; `dpkg --audit` clean.
 
@@ -68,7 +132,7 @@ After install: 2.8 GiB RAM available idle, 15 GB disk free.
 
 Regression check: `doppelbot` rebuilt and tested with its venv active (its README procedure: `source ~/ros2_ws/.venv/bin/activate`, `python -m colcon`), 214 tests, 0 failures, 0 skipped. Building it with the system `colcon` instead rewrites its entry-point shebangs to `/usr/bin/python3` and breaks the `kociemba` solver.
 
-### Rendering probe
+#### Rendering probe
 
 OpenGL (`glxinfo -B` on the VM session, `DISPLAY=:0`, `XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.*`):
 
@@ -91,18 +155,18 @@ Gazebo, RGB-D: a minimal world with a static `rgbd_camera` (320×240, 5 Hz) faci
 
 Consequence: decision D-005 in `docs/decisions.md`. Sensor simulations need the VM graphical session logged in.
 
-### Deferred at phase 0 closure (2026-10-28)
+#### Deferred at phase 0 closure (2026-10-28)
 
 Agreed with the user; each is checked in the phase that first needs it.
 
 - Phase 1: Gazebo GUI with `--render-engine ogre` and RAM with simulator + MoveIt 2 + RViz: both checked 2026-10-29, see below.
 - Phase 3: Open3D via pip on aarch64 / Python 3.12. Not checked: dropped on 2026-11-11, the perception baseline does not need it (D-012).
 
-## Phase 1 installation — 2026-10-29
+### Phase 1 installation — 2026-10-29
 
 `sudo apt install ros-jazzy-ur-simulation-gz ros-jazzy-ur-moveit-config`: 28 new packages, 0 upgraded, 0 removed (`ur_simulation_gz` 2.5.0, `ur_moveit_config` 3.9.0, `ur_description` 3.5.1, `gz_ros2_control` 1.2.20). Then `ros-jazzy-ur-robot-driver` 3.9.0 (10 new packages): `ur_moveit_config/launch/ur_moveit.launch.py` always starts `ur_robot_driver`'s `wait_for_robot_description` node, but its `package.xml` does not declare the dependency (upstream packaging bug), so the launch aborts without it.
 
-### UR5e smoke test (vendor launch, no project code)
+#### UR5e smoke test (vendor launch, no project code)
 
 `ros2 launch ur_simulation_gz ur_sim_moveit.launch.py ur_type:=ur5e gazebo_gui:=false` (Gazebo server only, `gz sim -s`; RViz from the MoveIt launch):
 
@@ -114,7 +178,7 @@ Agreed with the user; each is checked in the phase that first needs it.
 
 RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 GiB available, swap 0. Largest processes: `rviz2` 257 MB, `gz sim` 200 MB, `move_group` 105 MB, GNOME shell + Xwayland ~370 MB.
 
-## Project cell launch — 2026-10-29 (phase 1, step 3)
+### Project cell launch — 2026-10-29 (phase 1, step 3)
 
 `ros2 launch openfactory_bringup cell.launch.py` (Gazebo server, `move_group`, RViz), no new packages installed:
 
@@ -127,7 +191,7 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 - Gazebo GUI (`headless:=false rviz:=false`, `gz sim -r --render-engine ogre` on the VM desktop): renders floor, table and arm, smooth according to the user; `gz sim gui` ≈ 400 MB RSS, `gz sim server` ≈ 190 MB; 1.5 GiB used, 2.3 GiB available.
 - Harmless log lines: `MoveItConfigsBuilder` "Cannot infer URDF/SRDF" for `ur_moveit_config` (overridden), octomap "No 3D sensor plugin(s)", RViz `/recognize_objects` not available, duplicate `rviz2_moveit` rosout publisher.
 
-## Phase 2 gripper check — 2026-11-10
+### Phase 2 gripper check — 2026-11-10
 
 `ros2 launch openfactory_bringup cell.launch.py headless:=false`, no new packages:
 
@@ -135,17 +199,17 @@ RAM with Gazebo (server) + MoveIt 2 + RViz + GNOME session: 1.46 GiB used, 2.44 
 - `GripperCommand` goals 0 → 0.0425 → 0.02 → 0 → 0.0425: all reached, fingers within 0.2 mm of each other, after the joint-limit fix in D-007.
 - `/check_state_validity`: the home state is valid; arm and gripper pushed into the table are rejected (`gripper_palm`, fingers vs `table`). TF `tool0 → gripper_tcp` = (0, 0, 0.085).
 
-## Phase 2 objects check — 2026-11-10
+### Phase 2 objects check — 2026-11-10
 
 - Gazebo Transport Python bindings (`gz.transport13`, `gz.msgs10`) come with the ROS vendor packages (`ros-jazzy-gz-transport-vendor` 0.0.9, `ros-jazzy-gz-msgs-vendor` 0.0.8); nothing installed.
 - `/world/cell/create` and `/create/blocking` (and `remove`) both answer; the harness uses the blocking ones.
 - Results: D-009.
 
-## Phase 2 closing run — 2026-11-10
+### Phase 2 closing run — 2026-11-10
 
 `cell.launch.py headless:=true rviz:=false` + `phase2_pick_place_test.py` (30 cycles, E-002): 1.3 GiB used, 2.5 GiB available before and after; Gazebo real-time factor ≈ 1.0 during cycles. With the Gazebo GUI and RViz open, the harness smoke run saw cycles slow down by up to 3× in wall time.
 
-## Phase 3 camera and perception — 2026-11-11
+### Phase 3 camera and perception — 2026-11-11
 
 No package installed. Already present and used: `ros-jazzy-vision-msgs` 4.1.1, `ros-jazzy-ros-gz-bridge` 1.0.24, `sensor_msgs_py`, `tf2_ros`, `ament_cmake_python`, `python3-opencv` 4.6.0, NumPy 1.26.4. Open3D (deferred at phase 0) is not needed: the perception baseline uses NumPy and OpenCV only (D-012).
 
@@ -158,42 +222,13 @@ No package installed. Already present and used: `ros-jazzy-vision-msgs` 4.1.1, `
 - RAM with Gazebo server + MoveIt + depth model + perception + GNOME, no RViz: 1.5 GiB used, 2.3 GiB available. Resident: `gz sim` 345 MB, `scene_perception` 174 MB, `move_group` 101 MB, `depth_sensor_model` 78 MB, bridge 55 MB.
 - With `camera:=false` the fixtures model has no sensor and the cell runs without a display, as in phase 2.
 
-## Phase 5 runs — 2026-11-12
+### Phase 5 runs — 2026-11-12
 
 No package installed. The learned grasp ranking is trained with NumPy 1.26.4 (`scripts/ranker_fit.py`, batch, seconds) and evaluated in pure Python inside `openfactory_manipulation`; scikit-learn and PyTorch are not installed and not needed. The VM was restarted before the phase 5 runs; the cell was relaunched over SSH with the display variables (D-005) and ran about 5.5 hours of benchmarks without a restart.
 
 - RAM during a benchmark (Gazebo server + MoveIt + depth model + perception + harness + GNOME, no RViz): 1.5 GiB used, 2.4 GiB available; real-time factor ≈ 1.0, load average 3–4 on 4 cores. Resident: `gz sim` 357 MB, `scene_perception` 194 MB, harness 110 MB, `move_group` 105 MB.
 - Trial logs of all phase 5 runs: 19 MB in `~/openfactory_data/trials`.
 
-## Selected stack
+### Check — 2026-11-13
 
-| Area | Choice | Why |
-|---|---|---|
-| OS / ROS | Ubuntu 24.04 + ROS 2 Jazzy, as installed | Already working and healthy; no migration needed |
-| Simulator | Gazebo Harmonic (Sim 8.15) via `ros-jazzy-ros-gz`, render engine `ogre` (D-005) | Official Jazzy pairing, binary on aarch64; `ogre2` does not run on the virtio GPU |
-| Planning | MoveIt 2 2.12.4, OMPL via `openfactory_moveit_config` | Binary on aarch64; E-001 10/10 |
-| Robot | UR5e (D-004) | Full apt stack (description, Gazebo sim, MoveIt config) exists for Jazzy; Franka would need a source build |
-| Gripper | Project parallel-jaw gripper, `position_controllers/GripperActionController` (D-007) | No install; E-002 30/30 |
-| Camera | Gazebo `rgbd_camera` with D415 geometry, depth error model in `depth_sensor_model` (D-011) | Renders with Ogre 1 on the VM display; no install |
-| Perception | NumPy + OpenCV geometric baseline, `vision_msgs` output (D-012) | Already installed; 9 ms per frame |
-| Learned ranking | Logistic regression fitted with NumPy, inference in pure Python (D-019) | No install; selection time unchanged (0.035 s median) |
-
-Final choices are recorded in `docs/decisions.md` once installation and a phase-1 test confirm them.
-
-## Repo access from the VM
-
-The Mac is the source of truth. UTM 5.0.8 (QEMU backend) offers a single VirtFS shared folder, so both projects live in `~/Desktop/nico/github_portfolio/ros_2_projects/` (`doppelbot/`, `openfactory-ai/`) and that folder is the share:
-
-| Mac | VM |
-|---|---|
-| `~/Desktop/nico/github_portfolio/ros_2_projects` | `/mnt/ros_2_projects` (9p, tag `share`, in `/etc/fstab`) |
-| `~/Desktop/nico/github_portfolio/ros_2_projects/openfactory-ai` | `/mnt/openfactory-ai` → symlink to `/mnt/ros_2_projects/openfactory-ai` |
-| `~/Desktop/nico/github_portfolio/ros_2_projects/doppelbot` | `/mnt/doppelbot` → symlink to `/mnt/ros_2_projects/doppelbot` |
-
-The colcon workspace lives outside the share, at `~/openfactory_ws` in the VM.
-
-The share is **read-only for the VM user**: files keep the Mac owner (uid 501, mode 755) and the VM user is uid 1000 (`access=client`), so `mkdir` fails with "Permission denied". Run outputs are written in the VM under `~/openfactory_data/` and copied to the repo's git-ignored `data/` from the Mac: `scp -r doppelvm:openfactory_data/trials/<run_id> data/trials/`.
-
-Status: verified 2026-10-28 (mount, symlinks, `doppelbot` build and 214 tests pass through the new paths); original fstab kept as `/etc/fstab.bak`.
-
-2026-11-10: on the Mac the share moved from `~/Desktop/nico/ros_2_projects` to `~/Desktop/nico/github_portfolio/ros_2_projects` (whole folder, same contents). The UTM shared folder must point to the new path; nothing changes inside the VM.
+No package installed. Versions, kernel, disk and the installed apt packages are as in "Current state"; idle VM with no cell running: 1.0 GiB used, 2.8 GiB available. The benchmark runners used for the phase 5 runs (`~/p5_run.sh`, `~/p5_chain.sh`, VM only) are now versioned as `scripts/vm/run_benchmark.sh` and `scripts/vm/run_chain.sh` and run from the share (checked: ROS sourced, exit codes recorded, chain progress written).

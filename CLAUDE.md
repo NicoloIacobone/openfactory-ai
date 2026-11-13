@@ -40,20 +40,20 @@ A phase starts only after the previous one is closed, and closes only when its m
 - `ros2`, `colcon`, `apt`, `gz` and `rviz2` run only in the VM. Git runs only on the Mac.
 - The repo lives on the Mac in `~/Desktop/nico/github_portfolio/ros_2_projects/openfactory-ai`. The VM mounts the UTM share `ros_2_projects` at `/mnt/ros_2_projects`; `/mnt/openfactory-ai` is a symlink into it. Details: `docs/environment.md`, "Repo access from the VM".
 
-Commands in the VM over SSH (only commands that terminate: build, test, `ros2 topic echo --once`, `ros2 pkg list`):
+**The assistant has full control of the VM** (user's decision, 2026-11-13): build, test, launch and stop the cell, run benchmarks, read logs and kill processes over SSH, without asking and without stopping to hand a command over. Installing packages and changing system configuration still need approval (see "Working with the user").
 
 ```bash
 ssh doppelvm 'source /opt/ros/jazzy/setup.bash && <command>'
 ```
 
-`source` is always explicit: a non-interactive shell does not load `.bashrc`. GUI or long-running programs (simulator, RViz, launch files): give the user the command to run, with `2>&1 | tee ~/<name>.log` so the log can be read over SSH.
+`source` is always explicit: a non-interactive shell does not load `.bashrc`. Long-running programs (the cell, benchmarks) run detached with their output in `~/<name>.log`; benchmarks through `scripts/vm/run_benchmark.sh` and `run_chain.sh`. How to launch them, the display variables the camera needs, and the traps of driving the VM over SSH: `docs/environment.md`, "Operating the VM over SSH".
 
 ## Working with the user
 
 - One phase at a time; do not anticipate later phases.
-- Short plan first, then small patches. After each patch say which test to run, where (**[MAC]** or **[VM]**) and what the user should see.
-- Label every proposed command **[MAC]** or **[VM]**.
-- On an error: ask for the full command and output if missing, find the cause, propose the minimal fix and explain why.
+- Short plan first, then small patches. After each patch run the tests in the VM and report the result.
+- Label every command given to the user **[MAC]** or **[VM]**.
+- On an error: read the full output and logs, find the cause, apply the minimal fix and explain why.
 - Install commands follow the official docs (ROS 2 Jazzy, Gazebo, MoveIt 2). If unsure about a command or version, say so.
 - Ask before: installing packages, changing system configuration (Mac, VM, UTM), deleting files, changing an interface in `docs/architecture.md`, `git push`.
 - Small, descriptive commits, one per logical change.
@@ -88,6 +88,8 @@ Loop: RGB-D camera + robot state → `scene_perception` → `grasp_selector` →
 - Real dependencies in `package.xml`; do not invent them. A new dependency is proposed and justified first.
 
 ## Docs to update with every change
+
+**Before every commit**, update the docs the change touches (table below), then check that every `.md` file is still consistent and current: search all of them (`README.md`, `CLAUDE.md`, `docs/`, `docs/agent-guides/`) for the names, paths, commands, numbers and rules the change affects, and fix in the same commit anything they now state wrongly or out of date. Logs are not rewritten: a superseded entry in `docs/decisions.md` or `docs/experiments.md` gets an `Update <date>:` line that points to what replaced it.
 
 | Change | Update |
 |---|---|

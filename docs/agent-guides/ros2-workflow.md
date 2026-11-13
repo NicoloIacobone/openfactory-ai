@@ -33,7 +33,7 @@ Applies when a task creates or changes packages, nodes, launch files, parameters
 - Parameters in `config/*.yaml`, loaded by launch. No hard-coded tunables in node code.
 - `use_sim_time: true` on every node when the simulator runs; the `/clock` bridge must exist before nodes that use time.
 - Each package exposes its own launch files; `openfactory_bringup` includes them. Launch arguments for anything that varies between runs (seed, world, headless, rviz).
-- Long-running launches are started by the user with `2>&1 | tee ~/<name>.log`.
+- Long-running launches run detached in the VM with their output in `~/<name>.log` (`docs/environment.md`, "Operating the VM over SSH").
 
 ## TF and frames
 
@@ -49,4 +49,4 @@ Standard colcon workflow in the VM; exact commands in `CLAUDE.md`, "Build and te
 
 1. Build only what changed: `colcon build --symlink-install --base-paths /mnt/openfactory-ai/src --packages-up-to <pkg>`.
 2. Unit tests (pytest) for pure logic; `launch_testing` for node/launch integration when the behavior depends on ROS wiring. Check exit codes: a node crashing on shutdown is a failure.
-3. Tell the user which test to run, where, and what output to expect.
+3. Run the tests in the VM and report the result.

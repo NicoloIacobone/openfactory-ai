@@ -443,3 +443,20 @@ Code of commit `bac8f6d` (run at `44e70b6`, documents only in between), same con
 | Cube from the nest axes | at most 0.28° | ≤ 2° |
 | A cubie from its slot | at most 0.021 mm | ≤ 0.3 mm |
 | Time of a flip (wall) | median 19.7 s, max 27.0 s | |
+
+### Part D — the scan of the six faces (`p7_scan_eval`): pass
+
+Code of commit `bac8f6d` (run at `5fd34f7`, documents only in between), same config, seed 71: cubes 0 to 19, each scrambled with its own 25 moves and spawned in its own orientation (16 different ones among the 20), each in a fresh launch of the cell. The cell looks at the face that is up, flips the cube five times, and reads state and orientation from the six views; the camera is in the loop here (depth model on). Re-run: `scripts/vm/run_rubik.sh p7_scan_eval scan eval 0 19` in the VM.
+
+| Measure | Result | Threshold |
+|---|---|---|
+| Cubes whose state and orientation the cell read as the simulator has them | 20 of 20 (95 % Wilson interval 84–100 %) | 20 |
+| Wrong states accepted as valid | 0 | 0 |
+| Scans repeated | 0: every cube was read at the first scan | |
+| Stickers assigned to a centre that was not clearly the nearest | 0 of 1080 | |
+| Flips | 100 of 100 left the cube seated and square in the simulator; 0 failures reported by the cell | |
+| Executed states in collision | 0 of 32 800 | 0 |
+| Views (120): lowest score; cube centre seen from its seat; yaw seen | 0.78 (limit 0.5); at most 1.4 mm (limit 2 mm); at most 0.1° | |
+| Cube centre as seen against the simulator, horizontally | at most 0.74 mm apart | |
+| Simulated time of a scan | median 75 s (73–84 s) | |
+| Gazebo server memory during a scan | unchanged: flips make no change of axis | |

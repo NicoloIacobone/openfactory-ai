@@ -338,3 +338,11 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
   - End reasons: `solved`, `scan_failed`, `cube_lost`, `not_square`, `no_view`, `failure_budget`, `operation_budget`, `solver_failed`.
 - **Evaluation** (`scripts/rubik_benchmark.py`, `scripts/rubik_eval.py`): one cube per launch of the cell (the Gazebo server leaks memory at every change of axis, `docs/environment.md`); ground truth after every operation; a cube succeeds only if the cell says `solved`, the simulator's cube is solved, square and seated, and no executed state is in collision. Contacts of the fingers with the cube are the task and are not collisions; anything else is.
 - **Status:** accepted for phase 7; closing test not run yet (the solver is not installed).
+
+## D-028 — Solver dependency: `kociemba` from pip, in a venv of its own
+
+- **Context:** D-022 chose `kociemba` for the solution. It is not an apt package; Ubuntu 24.04 refuses `pip install` into the system Python; the `doppelbot` project on the same VM keeps its copy in a venv that is activated for every build, which once broke entry points built with the system `colcon` (`docs/environment.md`).
+- **Decision:** a venv used only as a place for the library, `~/openfactory_ws/.venv_solver`, filled from the pinned `requirements-vm.txt` at the repo root (`kociemba` 1.2.1, `cffi` 2.1.1, `future` 1.0.0, `pycparser` 3.11). It is never activated: the processes that solve get its site-packages on `PYTHONPATH` (`scripts/vm/run_rubik.sh` reads the path from `~/openfactory_ws/solver_path`). The library is imported in one place, inside `core/rubik/solver.solve`; `openfactory_manipulation` gains no dependency in `package.xml`, and its tests skip the solver test when the library is not there. `RubikSolver` takes the solver as an argument, so another one can stand in.
+- **Licence:** `kociemba` is GPLv2. It is not copied into the repository nor linked into anything the repository ships; it is called at run time.
+- **Evidence:** installed 2026-11-14 with the user's approval (`docs/environment.md`); solver test passes; development cube solved with a 21-move solution (`p7_solve_devkoc`, E-007), then with the library read from the `doppelbot` venv, same version.
+- **Status:** accepted for phase 7.

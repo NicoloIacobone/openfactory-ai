@@ -13,7 +13,7 @@ The current state of the Mac and the VM first, then the dated log of audits, ins
 | Python | 3.12.3 (system), NumPy 1.26.4, OpenCV 4.6.0 |
 | ROS 2 | Jazzy, `rmw_fastrtps_cpp` (default) |
 | apt packages installed for this project | phase 0: `ros-jazzy-ros-gz` 1.0.24 (Gazebo Sim 8.15), `ros-jazzy-moveit` 2.12.4, `mesa-utils`; phase 1: `ros-jazzy-ur-simulation-gz` 2.5.0, `ros-jazzy-ur-moveit-config` 3.9.0, `ros-jazzy-ur-robot-driver` 3.9.0 (needed by the vendor UR launch only). Nothing since: the Gazebo system plugin of phase 7 builds against the headers of the `gz_*_vendor` packages that `ros-jazzy-ros-gz` brought in. |
-| pip packages | none |
+| pip packages | none in the system Python. In a venv of this project, `~/openfactory_ws/.venv_solver` (phase 7, D-028): `kociemba` 1.2.1 with `cffi` 2.1.1, `future` 1.0.0, `pycparser` 3.11, from `requirements-vm.txt` |
 
 Memory with the full cell (Gazebo server with the camera, MoveIt, depth model, perception, benchmark harness, GNOME session; no RViz): 1.5 GiB used, 2.4 GiB available, real-time factor ≈ 1.0, load average 3–4 on 4 cores (phase 5). RViz adds about 260 MB, the Gazebo GUI about 400 MB. Idle VM: 1.0 GiB used.
 
@@ -33,6 +33,7 @@ Ring of N arms (phase 6; Gazebo server with N cameras, one `move_group`, N depth
 | Camera | Gazebo `rgbd_camera` with D415 geometry, depth error model in `depth_sensor_model` (D-011) | Renders with Ogre 1 on the VM display; no install |
 | Perception | NumPy + OpenCV geometric baseline, `vision_msgs` output (D-012) | Already installed; 9 ms per frame |
 | Learned ranking | Logistic regression fitted with NumPy, inference in pure Python (D-019) | No install; selection time unchanged (0.035 s median) |
+| Cube solver | `kociemba` 1.2.1 (pip, GPLv2) in its own venv, on `PYTHONPATH` of the process that solves (D-028) | About 20 moves per cube; no apt package; the system Python stays as it is |
 
 ### Repo access from the VM
 
@@ -289,3 +290,19 @@ No package installed. `ros2 launch openfactory_bringup rubik.launch.py rviz:=fal
 - **Times** (wall, real-time factor about 1): a turn 9–12 s, a flip 13–20 s (more when the cube is turned in the air first), the scan of six faces 81 s of simulated time for five flips.
 - **Memory.** A sequence of 40 flips and turns made 228 changes of axis and took the Gazebo server from 330 to 734 MB, most of them from knocks (the cube landing, the fingers closing). Since a change of axis needs 25 steps of demand in a row, a scan of six faces (five flips) makes none: 415 MB before and after.
 - **Traps:** a harness script that crashes with the cube between the fingers leaves it there, and the next spawn puts a second cube under it; start a probe by opening the gripper, going to ready and removing the cube. `ps` shows the Gazebo server as `ruby` with `gz sim` in its arguments.
+
+### Phase 7 solver installation — 2026-11-14
+
+Approved by the user on 2026-11-14 with this command, run as written:
+
+```bash
+# [VM]
+python3 -m venv ~/openfactory_ws/.venv_solver
+~/openfactory_ws/.venv_solver/bin/pip install -r /mnt/openfactory-ai/requirements-vm.txt
+```
+
+Installed in the venv only: `kociemba` 1.2.1 (a C extension built through `cffi`; `python3-dev` and `python3-venv` 3.12.3 were already there), `cffi` 2.1.1, `future` 1.0.0, `pycparser` 3.11; pip 24.0; 47 MB. Nothing in the system Python, in apt or in the `doppelbot` venv changed; 13 GB of disk free afterwards.
+
+How the cell finds it: the path of the venv's site-packages is written once in `~/openfactory_ws/solver_path` (`/home/nico/openfactory_ws/.venv_solver/lib/python3.12/site-packages`) and `scripts/vm/run_rubik.sh` puts it on `PYTHONPATH`. For `ros2 run openfactory_manipulation rubik` by hand: `export PYTHONPATH=$(cat ~/openfactory_ws/solver_path):$PYTHONPATH` after sourcing ROS and the workspace. The venv is never activated, so `colcon` and the ROS Python are not affected (the trap `doppelbot` met with its venv does not arise).
+
+Check: `test_rubik_cube.py` with the path set, 61 passed, the solver test among them (20 random scrambles solved in at most 25 moves, an impossible state refused). Without the path the same test is skipped and the cell ends as `solver_failed`.

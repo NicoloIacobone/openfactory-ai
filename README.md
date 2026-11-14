@@ -85,6 +85,13 @@ colcon test --base-paths <repo>/src && colcon test-result --verbose
 python3 -m pytest -q <repo>/tests
 ```
 
+The Rubik's cube cell also needs the `kociemba` solver, a pip package kept in a venv of its own (`requirements-vm.txt`, D-028):
+
+```bash
+python3 -m venv ~/openfactory_ws/.venv_solver && ~/openfactory_ws/.venv_solver/bin/pip install -r <repo>/requirements-vm.txt
+export PYTHONPATH=~/openfactory_ws/.venv_solver/lib/python3.12/site-packages:$PYTHONPATH   # for the process that solves
+```
+
 On GPUs limited to OpenGL 2.1 (e.g. the UTM virtio GPU) Gazebo uses the Ogre 1 render engine (`docs/decisions.md`, D-005); the launch files already select it.
 
 ## Run

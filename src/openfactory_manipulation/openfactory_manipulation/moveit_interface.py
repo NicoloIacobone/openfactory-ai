@@ -255,10 +255,19 @@ class MoveItInterface:
     def plan_cartesian(self, tool0_pose, start_state=None):
         """Straight tool0 line from the current state, or from `start_state` (robot_state):
         (error code, trajectory, fraction, s)."""
+        return self.plan_cartesian_path([tool0_pose], start_state)
+
+    def plan_cartesian_path(self, tool0_poses, start_state=None, scaling=None):
+        """Cartesian path of tool0 through `tool0_poses` in order, a straight line (and the
+        shortest rotation) between each two: an arc is given as poses along it. `scaling`:
+        velocity and acceleration scaling instead of those of `cartesian`.
+        (error code, trajectory, fraction, s)."""
         cart = self.cfg['cartesian']
+        if scaling is not None:
+            cart = {**cart, 'velocity_scaling': scaling, 'acceleration_scaling': scaling}
         request = GetCartesianPath.Request(
             group_name=self.names.group, link_name=self.names.tool_link,
-            waypoints=[to_pose(tool0_pose)],
+            waypoints=[to_pose(pose) for pose in tool0_poses],
             max_step=cart['max_step'], jump_threshold=0.0, avoid_collisions=True,
             max_velocity_scaling_factor=cart['velocity_scaling'],
             max_acceleration_scaling_factor=cart['acceleration_scaling'])

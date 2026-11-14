@@ -1,5 +1,5 @@
 """Rubik's cube cell (phase 7, D-024): Gazebo simulation with the nest and the RGB-D camera
-above it, MoveIt 2 move_group (+ RViz). The cube is spawned by the harness
+above it, MoveIt 2 move_group, cube_perception (+ RViz). The cube is spawned by the harness
 (scripts/rubik_benchmark.py) or by hand (scripts/rubik_scene.py).
 
     ros2 launch openfactory_bringup rubik.launch.py rviz:=false
@@ -7,6 +7,7 @@ above it, MoveIt 2 move_group (+ RViz). The cube is spawned by the harness
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
@@ -36,6 +37,8 @@ def generate_launch_description():
             'depth_noise', default_value='true',
             description='Apply the depth error model of the camera (D-011).'),
         DeclareLaunchArgument('seed', default_value='1', description='Seed of the depth noise.'),
+        DeclareLaunchArgument(
+            'perception', default_value='true', description='Start cube_perception.'),
         _include('openfactory_simulation', 'simulation.launch.py', {
             'headless': LaunchConfiguration('headless'),
             'camera': LaunchConfiguration('camera'),
@@ -50,4 +53,11 @@ def generate_launch_description():
             'urdf': ROBOT_XACRO,
             'srdf': SRDF_XACRO,
         }),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(PathJoinSubstitution(
+                [FindPackageShare('openfactory_perception'), 'launch',
+                 'cube_perception.launch.py'])),
+            launch_arguments={'use_sim_time': 'true'}.items(),
+            condition=IfCondition(LaunchConfiguration('perception')),
+        ),
     ])

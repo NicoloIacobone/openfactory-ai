@@ -42,6 +42,16 @@ def mass(config):
     return 26 * cube['cubie_mass'] + cube['core_mass'] + 6 * cube['axle_mass']
 
 
+def layer_inertia(config):
+    """Moment of inertia of one outer layer about its axis: nine cubies and their axle."""
+    cube = config['cube']
+    pitch = cube['pitch']
+    # each cubie m pitch^2 / 6 about its own centre; four edges one pitch from the axis, four
+    # corners sqrt(2) pitches
+    cubies = cube['cubie_mass'] * pitch * pitch * (9 / 6 + 4 * 1 + 4 * 2)
+    return cubies + 0.4 * cube['axle_mass'] * (pitch / 2) ** 2
+
+
 def cubie_pose(config, slot, rotation):
     """Pose (x, y, z, roll, pitch, yaw) of a cubie in the model frame."""
     pitch = config['cube']['pitch']
@@ -120,6 +130,7 @@ def cube_sdf(config, state=SOLVED, name=MODEL_NAME, fixed_core=False):
     fix = ('\n    <joint name="bench_fix" type="fixed"><parent>world</parent><child>core</child>'
            '</joint>' if fixed_core else '')
     params = ''.join(f'\n      <{key}>{mech[key]:.9g}</{key}>' for key in PLUGIN_PARAMS)
+    params += f'\n      <layer_inertia>{layer_inertia(config):.9g}</layer_inertia>'
     return f"""<?xml version="1.0"?>
 <sdf version="1.9">
   <model name="{escape(name)}">

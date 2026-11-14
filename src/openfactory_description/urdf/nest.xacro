@@ -1,17 +1,51 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://wiki.ros.org/xacro">
-  <!-- Pedestal and nest of the Rubik's cube cell (phase 7, D-024). The nest is a small bin
-       (bin.xacro) whose walls are lower than a cubie: it holds the bottom layer of the cube.
+  <!-- Pedestal and nest of the Rubik's cube cell (phase 7, D-024). The nest is a square seat
+       whose walls are lower than a cubie, so that it holds the bottom layer of the cube only,
+       with a rim that slopes outwards above each wall as a lead-in.
        Frames: `pedestal` at the centre of its footprint on the table, `nest` at the centre of
        the nest's inner floor, `height` above the table. Layout: config/rubik_cell.yaml, cube
-       size from config/rubik.yaml. parent: the table frame (centre of the table top). -->
+       size from config/rubik.yaml. parent: the table frame (centre of the table top).
+       Needs bin.xacro (openfactory_bin_box). -->
+
+  <!-- One sloping plate of the lead-in. `xyz`: centre; `rpy`: tilt; `size`: its box. -->
+  <xacro:macro name="openfactory_nest_rim" params="size xyz rpy">
+    <visual>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <box size="${size}"/>
+      </geometry>
+      <material name="bin_blue">
+        <color rgba="0.25 0.45 0.7 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <box size="${size}"/>
+      </geometry>
+    </collision>
+  </xacro:macro>
+
   <xacro:macro name="openfactory_nest" params="parent layout cube">
     <xacro:property name="p" value="${layout['pedestal']}"/>
     <xacro:property name="n" value="${layout['nest']}"/>
     <xacro:property name="inner" value="${3 * cube['cube']['pitch'] + 2 * n['clearance']}"/>
+    <xacro:property name="t" value="${n['wall']}"/>
+    <xacro:property name="h" value="${n['wall_height']}"/>
     <!-- the nest floor is the top `wall` of the pedestal height -->
-    <xacro:property name="body" value="${p['height'] - n['wall']}"/>
+    <xacro:property name="body" value="${p['height'] - t}"/>
     <xacro:property name="mass" value="2.0"/>
+    <!-- lead-in: a plate from the top of the inner face of a wall, `rise` up and `out` outwards -->
+    <xacro:property name="rise" value="${n['lead_in']['height']}"/>
+    <xacro:property name="out" value="${n['lead_in']['width']}"/>
+    <xacro:property name="plate" value="${n['lead_in']['thickness']}"/>
+    <xacro:property name="slope" value="${atan2(out, rise)}"/>
+    <xacro:property name="slant" value="${sqrt(out * out + rise * rise)}"/>
+    <!-- centre of a plate: the middle of its inner face plus half its thickness outwards -->
+    <xacro:property name="rim_r" value="${inner / 2 + out / 2 + plate / 2 * cos(slope)}"/>
+    <xacro:property name="rim_z" value="${h + rise / 2 - plate / 2 * sin(slope)}"/>
+    <xacro:property name="rim_l" value="${inner + 2 * out}"/>
 
     <link name="pedestal">
       <visual>
@@ -44,8 +78,38 @@
       <origin xyz="${p['xy'][0]} ${p['xy'][1]} 0" rpy="0 0 0"/>
     </joint>
 
-    <xacro:openfactory_bin_at link="nest" parent="pedestal"
-                              inner_size="${[inner, inner, n['wall_height']]}" wall="${n['wall']}"
-                              xyz="0 0 ${p['height']}" rpy="0 0 0"/>
+    <link name="nest">
+      <!-- floor, then walls at +x, -x (full outer width) and +y, -y (between them) -->
+      <xacro:openfactory_bin_box size="${[inner + 2 * t, inner + 2 * t, t]}" xyz="0 0 ${-t / 2}"/>
+      <xacro:openfactory_bin_box size="${[t, inner + 2 * t, h]}" xyz="${(inner + t) / 2} 0 ${h / 2}"/>
+      <xacro:openfactory_bin_box size="${[t, inner + 2 * t, h]}" xyz="${-(inner + t) / 2} 0 ${h / 2}"/>
+      <xacro:openfactory_bin_box size="${[inner, t, h]}" xyz="0 ${(inner + t) / 2} ${h / 2}"/>
+      <xacro:openfactory_bin_box size="${[inner, t, h]}" xyz="0 ${-(inner + t) / 2} ${h / 2}"/>
+      <!-- lead-in above the walls at +x, -x, +y, -y -->
+      <xacro:openfactory_nest_rim size="${plate} ${rim_l} ${slant}"
+                                  xyz="${rim_r} 0 ${rim_z}" rpy="0 ${slope} 0"/>
+      <xacro:openfactory_nest_rim size="${plate} ${rim_l} ${slant}"
+                                  xyz="${-rim_r} 0 ${rim_z}" rpy="0 ${-slope} 0"/>
+      <xacro:openfactory_nest_rim size="${rim_l} ${plate} ${slant}"
+                                  xyz="0 ${rim_r} ${rim_z}" rpy="${-slope} 0 0"/>
+      <xacro:openfactory_nest_rim size="${rim_l} ${plate} ${slant}"
+                                  xyz="0 ${-rim_r} ${rim_z}" rpy="${slope} 0 0"/>
+      <inertial>
+        <origin xyz="0 0 ${h / 2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${mass * (inner ** 2 + h ** 2) / 12}" ixy="0" ixz="0"
+                 iyy="${mass * (inner ** 2 + h ** 2) / 12}" iyz="0"
+                 izz="${mass * inner ** 2 / 6}"/>
+      </inertial>
+    </link>
+    <joint name="nest_joint" type="fixed">
+      <parent link="pedestal"/>
+      <child link="nest"/>
+      <origin xyz="0 0 ${p['height']}" rpy="0 0 0"/>
+    </joint>
+    <gazebo reference="nest">
+      <mu1>${n['friction']}</mu1>
+      <mu2>${n['friction']}</mu2>
+    </gazebo>
   </xacro:macro>
 </robot>

@@ -1,0 +1,71 @@
+# Rubik's cube cell (phase 7, D-024): how the arm handles the cube in the nest.
+# SI units, radians. Planning, straight-line and timeout settings are those of pick_place.yaml.
+
+# Arm configuration between operations: beside the nest, tool pointing down, clear of the
+# camera's view of the cube (the cell's ready configuration turned about the base).
+ready_joints: [0.45, -1.8188, 2.0501, -1.8021, -1.5708, -1.9105]
+
+grasp:                               # the one grasp of the cell (core/rubik/station.py)
+  tip_margin: 0.002                  # m, fingertips above the top of the bottom layer when
+                                     # the tool points down: the pads hold the two upper layers
+  approach_height: 0.05              # m, pre-grasp above the grasp: fingertips clear the cube
+  preclose_margin: 0.005             # m per finger: opening for approach and release
+  squeeze_depth: 0.0003              # m per finger: close target inside the cube. The held
+                                     # cube ends this far off the tool axis, towards the mimic
+                                     # finger (D-010), and the nest leaves it 0.75 mm per side:
+                                     # kept small. The squeeze is the full effort all the same
+  width_tolerance: 0.003             # m: jaw opening vs the cube side while it is held
+  max_effort: 20.0                   # N
+
+turn:
+  waypoint_angle: 0.5236             # rad, the wrist turn is planned through poses this far apart
+  scaling: 0.5                       # velocity and acceleration scaling of the wrist turn (the
+                                     # straight lines of pick_place.yaml run at 0.1)
+
+flip:
+  lift_height: 0.05                  # m, the cube is lifted this far before it is tipped
+  waypoint_angle: 0.2618             # rad, spacing of the poses along the arc
+  scaling: 0.3                       # velocity and acceleration scaling of the arc
+  retreat: 0.06                      # m, back along the tool axis after the release
+  rise: 0.10                         # m, then straight up, before the free plan back to ready
+  release_height: 0.0015             # m, the cube is let go this far above its seat: where it
+                                     # sat in the nest before (0.75 mm of play per side) is where
+                                     # it sits in the gripper, and after the tip that is height
+  # The quarter turns about a horizontal axis that the arm can make and set down (reach
+  # checked with MoveIt, D-024). finger_axis: what the fingers close along while the cube is
+  # tipped; tool_axis: where the tool points when the cube is set down. Nest frame: x away
+  # from the robot, z up.
+  kinds:
+    over:                            # the arm reaches over the nest and points back at itself:
+      finger_axis: [0.0, 1.0, 0.0]   # the face that looked away from the robot comes down
+      tool_axis: [-1.0, 0.0, 0.0]
+    side:                            # the tool ends pointing along +y: the face that looked
+      finger_axis: [1.0, 0.0, 0.0]   # along -y comes down
+      tool_axis: [0.0, 1.0, 0.0]
+
+scene:
+  shrink: 0.001                      # m per side: the cube in the planning scene is this much
+                                     # smaller than the real one, so that it does not touch the
+                                     # nest it sits in
+
+view:                                # what a view of the cube must show (cube_perception)
+  settle_s: 0.5                      # s at ready before asking for a view
+  timeout_s: 10.0                    # s (simulation clock) waiting for a view newer than that
+  seat_offset: 0.002                 # m, cube centre from its seat, horizontally (the nest
+                                     # leaves 0.75 mm of play per side)
+  seat_height: 0.003                 # m, and vertically
+  seat_tilt: 0.05                    # rad, top face from horizontal
+  seat_yaw: 0.06                     # rad, top face about the vertical (play: 0.026)
+  min_score: 0.5                     # confidence that the cube is a square block
+
+plan:                                # s, to choose among plans (measured means, E-007)
+  flip: 15.0                         # one flip
+  yaw: 4.0                           # more when the cube is turned in the air first
+  turn: 10.0                         # one turn
+
+task:                                # solve loop (D-027)
+  retries: 2                         # times an operation that left the cube as it was is tried again
+  rescans: 3                         # scans after the first: one checks the solved cube, the
+                                     # others follow a view that was not what was expected
+  realigns: 2                        # attempts to turn back a cube that is seen out of square
+  max_operations: 250                # the loop gives up after this many flips and turns

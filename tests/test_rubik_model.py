@@ -98,7 +98,7 @@ def test_plugin_parameters_match_the_plugin_source():
     plugin = model().find('plugin')
     assert plugin.get('filename') == rm.PLUGIN_FILE and plugin.get('name') == rm.PLUGIN_NAME
     assert f'openfactory::{rm.PLUGIN_NAME.split("::")[1]}' in PLUGIN_SOURCE
-    for key in rm.PLUGIN_PARAMS + ('pitch',):
+    for key in rm.PLUGIN_PARAMS + ('pitch', 'layer_inertia'):
         assert plugin.find(key) is not None
         assert f'"{key}"' in PLUGIN_SOURCE, key
     # the plugin numbers the axles in this order
@@ -118,5 +118,6 @@ def test_mechanism_parameters_are_consistent():
     # the detent is an explicit spring on the lightest thing it moves, one layer of 9 cubies:
     # stable only well below 2 / step
     cube = CONFIG['cube']
-    inertia = cube['cubie_mass'] * cube['pitch'] ** 2 * (9 / 6 + 4 * 1 + 4 * 2)
+    inertia = rm.layer_inertia(CONFIG)
+    assert inertia == pytest.approx(1.46e-5, rel=0.02)
     assert (mech['detent_stiffness'] / inertia) ** 0.5 * 0.001 < 1.2

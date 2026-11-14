@@ -25,5 +25,11 @@ IK_SERVICE = '/compute_ik'
 GRIPPER_ACTION = '/gripper_controller/gripper_cmd'
 OBJECTS_TOPIC = '/perception/objects'
 
+# Rubik's cube cell (phase 7): what cube_perception publishes
+NEST_FRAME = 'nest'
+CUBE_DETECTION_TOPIC = '/perception/cube/detection'
+CUBE_FACE_TOPIC = '/perception/cube/top_face'
+CUBE_CLASS = 'rubik_cube'
+
 DESCRIPTION_PACKAGE = 'openfactory_description'
 PACKAGE = 'openfactory_manipulation'

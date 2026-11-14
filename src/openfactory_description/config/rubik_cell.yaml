@@ -14,9 +14,16 @@ pedestal:
 # centre of its inner floor, axes parallel to the table.
 nest:
   clearance: 0.00075          # m per side between the cube and the walls
-  wall_height: 0.012          # m, lower than a cubie (0.019): only the bottom layer is held,
-                              # and the fingers pass over the walls when the tool is horizontal
+  wall_height: 0.008          # m, lower than a cubie (0.019): only the bottom layer is held
   wall: 0.008                 # m, wall and floor thickness
+  # Lead-in: above each wall a rim that slopes outwards, so that a cube set down a few
+  # millimetres off slides into its seat. With the wall it stays below the fingers when the
+  # tool is horizontal (their lower edge is 18.5 mm above the nest floor).
+  lead_in:
+    height: 0.005             # m above the wall top
+    width: 0.004              # m outwards: how far off the cube may come down
+    thickness: 0.002          # m of the sloping plate
+  friction: 0.2               # Gazebo mu/mu2: smooth, so that the cube slides down the rim
 
 # Camera of the cell (config/camera.yaml) straight above the nest, image right = world +x.
 camera_mount:

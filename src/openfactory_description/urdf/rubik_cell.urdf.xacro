@@ -1,7 +1,8 @@
 <?xml version="1.0"?>
 <!-- Rubik's cube cell (phase 7, D-024): the UR5e and the gripper of the cell on the cell's
      table, with a pedestal, a nest for the cube and one camera above it in place of the bins.
-     The arm, its names and its controllers are those of openfactory_cell.urdf.xacro.
+     The arm, its names and its controllers are those of openfactory_cell.urdf.xacro; the
+     fingers carry a pad at their tip (config/rubik_gripper.yaml).
      include_fixtures:=true  -> robot + fixed infrastructure (floor, table, pedestal, nest,
                                 camera): robot_state_publisher, MoveIt.
      include_fixtures:=false -> robot only: spawned in Gazebo next to the separate fixtures
@@ -10,7 +11,7 @@
   <xacro:arg name="ur_type" default="ur5e"/>
   <xacro:arg name="include_fixtures" default="true"/>
   <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
-  <xacro:arg name="gripper_file" default="$(find openfactory_description)/config/gripper.yaml"/>
+  <xacro:arg name="gripper_file" default="$(find openfactory_description)/config/rubik_gripper.yaml"/>
   <xacro:arg name="camera_file" default="$(find openfactory_description)/config/camera.yaml"/>
   <xacro:arg name="layout_file" default="$(find openfactory_description)/config/rubik_cell.yaml"/>
   <xacro:arg name="cube_file" default="$(find openfactory_description)/config/rubik.yaml"/>

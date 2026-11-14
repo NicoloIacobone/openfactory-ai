@@ -1,0 +1,31 @@
+# Phase 7, Rubik's cube cell: seeds, sizes and tolerances of the tests on the robot
+# (E-007 parts B to F). SI units, radians.
+run_name: phase7_rubik
+
+seeds:
+  dev: 7100                   # development: tuning and debugging
+  eval: 71                    # evaluation, used once the code is frozen
+  confirm: 72                 # confirmation
+
+# scripts/rubik_benchmark.py: cube `index` of a seed is scrambled with this many random moves
+# and stands in the nest in a random one of the 24 orientations, both from (seed, index)
+scramble_moves: 25
+cubes:                        # cubes per part and set, and how many must succeed
+  scan: {dev: 3, eval: 20, min_successes: 20}
+  solve: {dev: 2, eval: 10, confirm: 5, min_successes: {eval: 9, confirm: 4}}
+  scramble: {eval: 1}
+
+# scripts/rubik_cell_test.py: operations per part and how many must succeed
+parts:
+  turn: {count: 60, min_successes: 57}
+  flip: {count: 60, min_successes: 57}
+  mixed: {count: 30}
+
+evaluation:
+  settle_s: 1.0               # wait after an operation before reading ground truth
+  record_period_s: 0.1        # executed joint states re-checked by MoveIt
+  seat_offset_m: 0.002        # the cube centre is this close to its seat in the nest
+  seat_tilt_rad: 0.035        # and the cube this close to one of the 24 orientations (the
+                              # nest leaves the cube 1.5 degrees of play about the vertical)
+  square_position_m: 0.0003   # every cubie this close to the centre of its slot
+  square_angle_rad: 0.01      # and to one of the 24 rotations (0.6 degrees)

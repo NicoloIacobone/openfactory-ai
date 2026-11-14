@@ -1,6 +1,6 @@
 # Architecture
 
-Components, interfaces and frames of the single-arm cell as implemented through phase 5, and of the ring of N arms built from it in phase 6 ("Ring of N arms" below). The Rubik's cube cell of phase 7 is being built ("Rubik's cube cell" at the end): so far its cube model and the cube's logic. A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
+Components, interfaces and frames of the single-arm cell as implemented through phase 5, and of the ring of N arms built from it in phase 6 ("Ring of N arms" below). The Rubik's cube cell of phase 7 ("Rubik's cube cell" at the end) is built; its closing test has not run yet. A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
 
 ## System loop
 
@@ -185,23 +185,54 @@ Ground truth is read as in the cell, by the harness only (`scripts/relay_benchma
 
 ## Rubik's cube cell
 
-Phase 7 (D-022, in progress). One arm, a nest that holds the bottom layer of the cube and one overhead camera are to solve a scrambled Rubik's cube whose layers turn only under the forces applied to it. A third system next to the cell and the ring, built from the same packages. Implemented so far: the cube model with its mechanism, the cube's logic, the mechanism test bench and the cell's layout (arm, nest, camera, MoveIt); the motions on the cube, the perception of the cube and the solve loop are not.
-
-### Layout and frames
+Phase 7 (D-022 to D-027, in progress). One arm, a nest that holds the bottom layer of the cube and one overhead camera solve a scrambled Rubik's cube whose layers turn only under the forces applied to it. A third system next to the cell and the ring, built from the same packages.
 
 ```
 ros2 launch openfactory_bringup rubik.launch.py rviz:=false
+python3 scripts/rubik_scene.py spawn --seed 3        # harness: a scrambled cube in the nest
+ros2 run openfactory_manipulation rubik
 ```
 
-The table, the UR5e, the gripper, the controllers and the MoveIt configuration are the cell's: `rubik_cell.urdf.xacro` has the same robot, joint and link names as `openfactory_cell.urdf.xacro`, so the interfaces of the cell above hold unchanged (`/move_action`, `/compute_cartesian_path`, `/compute_ik`, `/execute_trajectory`, `/apply_planning_scene`, the two controllers, `/camera/...`). In place of the bins there is a pedestal with a nest, and the camera hangs above the nest. Layout in `openfactory_description/config/rubik_cell.yaml`; in Gazebo the fixtures are a separate model (`rubik_fixtures.urdf.xacro`), for TF and MoveIt they are links of the robot URDF, as in the cell. `simulation.launch.py` and `move_group.launch.py` take the xacro and SRDF file names as arguments whose defaults are the cell's; `rubik.launch.py` passes its own.
+Loop: view of the face that is up → flip → view … (six faces) → state → solution → for every move: flips that bring its face down, turn → view after every operation (cube seated, square, the expected face up) → scan again → `solved`.
+
+### Components
+
+| Component | Implemented as | Input | Output |
+|---|---|---|---|
+| `scene_perception` | node `openfactory_perception/cube_perception` (`core/cube_view.py`, D-025) | depth, colour, `camera_info`, TF | the cube in the nest: pose, squareness score, colours of the nine stickers of the top face |
+| `task_planner` + `robot_executor` | `openfactory_manipulation` library `cube_handling.CubeHandler` (D-024) | an operation: turn, flip, realign | MoveIt requests, trajectories, gripper commands, operation result |
+| `scene_manager` | `openfactory_manipulation` library `rubik.RubikSolver`, rules in `core/rubik/` (D-026, D-027) | views, operation results | believed cube state and orientation, next operation, end reason |
+
+- **Nest and grasp.** The nest is a seat 58.5 mm wide with walls 8 mm high and a rim that slopes outwards above them: it holds the bottom layer against turning, and a cube set down a few millimetres off slides in. The gripper is the cell's with three ribs on its fingertips (`rubik_gripper.yaml`), the only parts that touch the cube: they bear on the centre cubies of two opposite faces, at the height of the cube centre, with the fingertips 2 mm above the bottom layer.
+- **Turn** (`CubeHandler.turn(k)`): grasp from above, the wrist turns k quarter turns about the vertical, release. The bottom layer stays in the nest, the rest of the cube turns: in the cube's own terms the face that is down makes k quarter turns anticlockwise seen from outside, and the cube frame turns with the gripper.
+- **Flip** (`CubeHandler.flip(kind, yaw)`): grasp, lift, turn the held cube `yaw` quarter turns about the vertical, tip it a quarter turn about the finger axis, set it down with the tool horizontal. Kinds `over` (the face that looked away from the robot comes down) and `side` (the face that looked along −y).
+- **Planning scene.** The cube is two boxes, the bottom layer (`cube_base`) and the two layers above it (`cube_top`), 1 mm smaller per side than the real ones; a turn attaches `cube_top` to `gripper_tcp`, a flip both. Free-space plans between ready and the pre-grasp, Cartesian paths (lines and arcs through poses) with the cube.
+- **Views** are taken with the arm at ready, as in the cell. A view is usable when the cube is seated (centre within 2 mm, top face level and within 3.4° of the nest axes) and square (score ≥ 0.5).
+- **Belief.** The cell keeps the 54-facelet state and the orientation of the cube in the nest (one of 24), from the scan and from the logical model of every operation it made. Once it knows them, the top face of every view must be the one they predict.
+- **End reasons:** `solved` (only after a scan that reads the solved cube), `scan_failed`, `cube_lost`, `not_square`, `no_view`, `failure_budget`, `operation_budget`, `solver_failed`.
+
+### Interfaces of the Rubik's cube cell
+
+Those of the cell for the arm, the gripper, MoveIt and the camera (table above), plus:
+
+| Name | Type | Producer → consumer | Notes |
+|---|---|---|---|
+| `/perception/cube/detection` | `vision_msgs/Detection3DArray` | `cube_perception` → `openfactory_manipulation` | one message per depth frame that has its colour frame, image stamp, frame `world`; empty if no cube stands in the nest. Otherwise one detection: `results[0].hypothesis.class_id` = `rubik_cube`, `.score` in (0, 1] (falls when a layer is out of square or the top is uneven), `results[0].pose` = cube centre with the orientation of its top face (yaw within 45° of the nest axes), `bbox.size` = measured sides and height |
+| `/perception/cube/top_face` | `sensor_msgs/Image` `rgb8`, 3 × 3 | `cube_perception` → `openfactory_manipulation` | median colour of the nine stickers of the top face as seen from above: row 0 on the +y side of the face, column 0 on its −x side; same stamp, frame `nest`; not published when no cube is seen |
+| `/perception/cube/debug/image` | `sensor_msgs/Image` `rgb8` | `cube_perception` → RViz | colour image with the sticker centres drawn, published while subscribed |
+| `/camera/color/image_raw` | `sensor_msgs/Image` `rgb8` | Gazebo (`ros_gz_bridge`) → `cube_perception` | here the colour image is used for recognition, not only for debug views |
+
+### Layout and frames
+
+The table, the UR5e, the controllers and the MoveIt configuration are the cell's: `rubik_cell.urdf.xacro` has the same robot, joint and link names as `openfactory_cell.urdf.xacro` (the fingers carry three ribs more, `rubik_gripper.yaml`), so the interfaces of the cell above hold unchanged (`/move_action`, `/compute_cartesian_path`, `/compute_ik`, `/execute_trajectory`, `/apply_planning_scene`, the two controllers, `/camera/...`). In place of the bins there is a pedestal with a nest, and the camera hangs above the nest. Layout in `openfactory_description/config/rubik_cell.yaml`; in Gazebo the fixtures are a separate model (`rubik_fixtures.urdf.xacro`), for TF and MoveIt they are links of the robot URDF, as in the cell. `simulation.launch.py` and `move_group.launch.py` take the xacro and SRDF file names as arguments whose defaults are the cell's; `rubik.launch.py` passes its own.
 
 | Frame | Parent | Notes |
 |---|---|---|
 | `pedestal` | `table` | centre of the pedestal's footprint on the table top, 0.50 m in front of the robot base |
-| `nest` | `pedestal` | centre of the nest's inner floor, 0.08 m above the table top (world (0.50, 0, 0.83)), axes parallel to the table. A square seat 58.5 mm wide with walls 12 mm high: it holds the bottom layer of the cube (19 mm) with 0.75 mm of play per side |
+| `nest` | `pedestal` | centre of the nest's inner floor, 0.08 m above the table top (world (0.50, 0, 0.83)), axes parallel to the table: x away from the robot. A square seat 58.5 mm wide with walls 8 mm high and a sloping rim 5 mm above them: it holds the bottom layer of the cube (19 mm) with 0.75 mm of play per side |
 | `camera_link`, `camera_optical_frame` | `nest` | the cell's camera 0.70 m above the nest floor, looking straight down, image right = world +x |
 
-The pedestal raises the nest so that the gripper can set the cube down with its tool horizontal: the fingers then pass 6.5 mm above the nest walls and the palm hangs beside the pedestal, 78 mm above the table. `openfactory_manipulation/core/rubik/station.py` holds the geometry of the grasps (ROS-free): the tool axis through the cube centre, the fingertips 2 mm above the top of the bottom layer in the grasp from above, so that the pads hold the two upper layers only.
+The pedestal raises the nest so that the gripper can set the cube down with its tool horizontal: the fingers then pass 5 mm above the rim of the nest and the palm hangs beside the pedestal, 78 mm above the table. `openfactory_manipulation/core/rubik/station.py` holds the geometry of the grasps (ROS-free): the tool axis through the cube centre, the fingertips 2 mm above the top of the bottom layer in the grasp from above, so that the pads hold the two upper layers only.
 
 ### The cube model
 
@@ -221,7 +252,7 @@ The cubies do not collide with each other (one model, no `self_collide`); they c
 
 - One axis of the cube is active. The nine cubies of each of its two outer layers are welded to that layer's axle, the eight between them to the core. A weld is a `DetachableJoint` entity: in the physics engine a fixed joint of the model tree.
 - The two active axles turn under whatever torque reaches them through the cubies, against the joint friction and a detent the plugin applies as a joint torque: a spring towards the nearest quarter turn, capped, within a window. The other four axles carry nothing.
-- From the wrench each weld transmits the plugin computes the torque the outside applies to every layer of the two other axes. When one exceeds `breakaway_torque` and both active layers are within `snap_tolerance` of a quarter turn, their angles are set to exactly the quarter turn (`JointPositionReset`), the welds are removed after that step and created for the new axis before the next one. If a layer moved in between, the old welds are put back. While an active layer is out of square the other axes stay rigid.
+- From the wrench each weld transmits the plugin computes the torque the outside applies to every layer of the two other axes. When one exceeds `breakaway_torque` for 25 steps in a row and both active layers are within `snap_tolerance` of a quarter turn, their angles are set to exactly the quarter turn (`JointPositionReset`), the welds are removed after that step and created for the new axis before the next one. Meanwhile the two layers that were free are held by a torque opposite to what the outside applies to them; if one moves all the same the squaring is tried again, and if it moves when the welds are gone the old welds are put back. While an active layer is out of square the other axes stay rigid.
 - Nothing moves a cubie except forces on the links. Idealised: no interlocking pieces inside (a cubie cannot be pulled out, a corner cannot be twisted), and the exact squaring (at most 0.1°) before an axis change.
 
 The plugin publishes its state on the Gazebo topic `/model/rubik_cube/mechanism` (`gz.msgs.StringMsg`, JSON: active axis, axle angles, torque demand per axis, axis changes, `blocked`), 50 times per simulated second. It is simulator data: not bridged to ROS, read by the harness only.
@@ -235,8 +266,12 @@ ROS-free, in `openfactory_manipulation/core/rubik/`, with pytest:
 | `cube.py` | the cube as 54 facelets in Kociemba's order (`URFDLB`), moves, validity and solvability of a state, seeded scrambles (ported from the `doppelbot` project) |
 | `cubies.py`, `rotations.py` | the same cube as 26 cubies, each in a slot with one of the 24 rotations; conversion both ways |
 | `orientation.py` | how the cube sits in the nest (one of 24 orientations) and what the cell's turn and flip do to state and orientation |
+| `station.py` | tool poses of the grasp, the turn and the flip, in the nest frame |
+| `view.py` | what a view of the cube must show, and which facelets the top face is |
+| `scan.py` | from six views to the state and the orientation (D-026) |
+| `plan.py` | the flips that show six faces; the flips and turns that make a list of moves |
 | `solver.py` | `solve(state)` through the `kociemba` library, imported only there |
 
 ### Ground truth
 
-As in the cell, only the harness reads the simulator: `scripts/rubik_truth.py` turns the poses of the cube's links (`/world/<world>/dynamic_pose/info`) into the 54-facelet state, with the largest distance and angle of a cubie from the grid. `scripts/rubik_mechanism_test.py` drives the test bench (`ros2 launch openfactory_simulation rubik_bench.launch.py`, world `rubik_bench`: physics only, a cube whose core is fixed to the world, faces turned by torques on their centre cubies through Gazebo's `ApplyLinkWrench` system). That drive exists on the bench only.
+As in the cell, only the harness reads the simulator: `scripts/rubik_truth.py` turns the poses of the cube's links (`/world/<world>/dynamic_pose/info`) into the 54-facelet state, with the largest distance and angle of a cubie from the grid; `scripts/rubik_scene.py` spawns a cube in the nest in a given state and orientation and reads where it stands. `scripts/rubik_cell_test.py` (turns and flips) and `scripts/rubik_benchmark.py` (scan, solve; judged in `scripts/rubik_eval.py`) compare every operation of the cell with it. `scripts/rubik_mechanism_test.py` drives the test bench (`ros2 launch openfactory_simulation rubik_bench.launch.py`, world `rubik_bench`: physics only, a cube whose core is fixed to the world, faces turned by torques on their centre cubies through Gazebo's `ApplyLinkWrench` system). That drive exists on the bench only.

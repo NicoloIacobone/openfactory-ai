@@ -27,3 +27,22 @@ sigma:                         # normalisation of the feature residuals
 min_score: 0.2                 # below it the cluster is published as `unknown`
 
 publish_debug: true            # /perception/debug/points and /perception/debug/image
+
+# Rubik's cube cell (phase 7, D-025): the cube standing in the nest, seen from above
+# (core/cube_view.py). Lengths refer to the nest frame (origin on the nest floor, z up).
+cube:
+  depth_range: [0.1, 3.0]      # m, accepted z-depth
+  region: 0.06                 # m, half side of the square around the nest centre that is looked at
+  rim_height: 0.017            # m above the nest floor: below it are the walls and their rim
+                               # (0.013), about 3 sigma of the depth noise lower
+  top_tolerance: 0.006         # m around the height of the cube top (0.057): about 4 sigma
+  min_points: 600              # depth pixels on the top face of a cube that is there (a whole
+                               # face is about 2000)
+  outline_margin: 0.003        # m outside the outline of the top face before a lower point
+                               # counts as sticking out
+  sticker_patch: 0.4           # share of a cubie side sampled around the centre of a sticker
+  sigma:                       # normalisation of the score of the detection
+    protrusion: 0.00004        # m^2 seen sticking out under the top face (a layer 12 degrees
+                               # out of square shows 0.0001 or more)
+    roughness: 0.004           # m, RMS of the top face about its plane (depth noise: 0.0014)
+    size: 0.004                # m, sides of the top face against the cube side

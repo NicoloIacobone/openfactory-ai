@@ -1,0 +1,38 @@
+# Gripper of the Rubik's cube cell (phase 7, D-024): the cell's gripper (gripper.yaml, D-007,
+# D-014) with ribs on the fingertips. Everything else is the same; a pytest keeps the two
+# files in step. REP 103: metres, kilograms, newtons.
+# Fingers slide along tool0 y; each finger joint value is half of the distance between the
+# inner faces of the fingers, so the ribs meet the cube at half its side plus their thickness.
+
+palm:
+  size: [0.06, 0.12, 0.04]    # x, y, z; bottom face on the tool0 flange, z along the tool axis
+  mass: 0.3
+
+finger:
+  size: [0.02, 0.01, 0.11]    # x (width), y (thickness), z (length below the palm). Longer than
+                              # the bin walls are high (0.10 m), so only the fingers enter a bin
+                              # and the palm stays above the rim (D-014)
+  mass: 0.05
+  stroke: 0.0425              # commanded range [0, stroke] per finger: opening 0 .. 0.085 m
+  limit_margin: 0.005         # joint limits are [-margin, stroke + margin]: a Gazebo joint pushed
+                              # past a limit stops responding (gz_ros2_control#165/#192), so neither
+                              # the initial state nor open/close commands may sit on a limit
+  effort: 20.0                # N, joint effort limit = clamping force per finger in Gazebo
+  velocity: 10.0              # m/s, joint velocity limit. Kept above the commands gz_ros2_control
+                              # issues (finger: 0.1 gain x 500 Hz x error <= 2.6 m/s; mimic finger:
+                              # 500 Hz x lag, 5 m/s at 1 cm): a joint driven onto this limit stops
+                              # following commands, like a position limit
+  friction: 1.5               # Gazebo mu1/mu2 on the finger collisions
+  # Raised ribs on the inner face of each finger, at its tip: the only parts of the gripper
+  # that touch the cube. Two on the left finger and one on the right, between them: three
+  # lines of contact, so the squeeze is shared between the two left ribs whatever the contact
+  # solver does, and their distance is what stops the cube from turning between the fingers.
+  # All three bear on the centre cubie of a face (0.019 m wide): what turns the cube passes
+  # through the axis of that face and cannot spin the face layer itself, and the cube is held
+  # on a line through its centre of mass.
+  pad:
+    size: [0.003, 0.002, 0.015] # one rib: x (width), y (how far it stands out of the finger),
+                                # z (height from the fingertip up)
+    spacing: 0.011              # m between the centres of the two ribs of the left finger
+
+tcp_offset: 0.135             # gripper_tcp along tool0 z: between the pads, 15 mm above the fingertips

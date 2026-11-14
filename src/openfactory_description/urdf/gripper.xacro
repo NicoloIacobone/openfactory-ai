@@ -21,6 +21,18 @@
     </geometry>
   </xacro:macro>
 
+  <xacro:macro name="openfactory_finger_rib" params="size xyz">
+    <visual>
+      <xacro:openfactory_box_geometry size="${size}" xyz="${xyz}"/>
+      <material name="gripper_pad">
+        <color rgba="0.55 0.3 0.1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <xacro:openfactory_box_geometry size="${size}" xyz="${xyz}"/>
+    </collision>
+  </xacro:macro>
+
   <!-- side: 1 for the left finger (+y), -1 for the right finger (-y) -->
   <xacro:macro name="openfactory_finger" params="name side g prefix:=''">
     <xacro:property name="f" value="${g['finger']}"/>
@@ -38,6 +50,22 @@
       <collision>
         <xacro:openfactory_box_geometry size="${f['size']}" xyz="${box_xyz}"/>
       </collision>
+      <!-- optional ribs standing out of the inner face at the fingertip (Rubik's cube cell):
+           two on the left finger, `spacing` apart, one on the right finger between them -->
+      <xacro:if value="${'pad' in f}">
+        <xacro:property name="pad" value="${f['pad']['size']}"/>
+        <xacro:property name="pad_y" value="${-side * pad[1] / 2}"/>
+        <xacro:property name="pad_z" value="${f['size'][2] - pad[2] / 2}"/>
+        <xacro:if value="${side == 1}">
+          <xacro:openfactory_finger_rib size="${pad}"
+                                        xyz="${f['pad']['spacing'] / 2} ${pad_y} ${pad_z}"/>
+          <xacro:openfactory_finger_rib size="${pad}"
+                                        xyz="${-f['pad']['spacing'] / 2} ${pad_y} ${pad_z}"/>
+        </xacro:if>
+        <xacro:if value="${side == -1}">
+          <xacro:openfactory_finger_rib size="${pad}" xyz="0 ${pad_y} ${pad_z}"/>
+        </xacro:if>
+      </xacro:if>
       <xacro:openfactory_box_inertial mass="${f['mass']}" size="${f['size']}" xyz="${box_xyz}"/>
     </link>
 

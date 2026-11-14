@@ -28,6 +28,15 @@ Each step is a pure function in `openfactory_perception/core` with pytest tests 
 
 The bin is the node parameter `bin_frame` (default `input_bin`). In the ring of N arms (phase 6) `ring_perception.launch.py` starts one node per bin in the namespace `/bin_<k>`, with `bin_frame: bin_<k>` and the topics of `constants.TOPICS` remapped into it; every bin has the inner size of the cell's input bin and the camera of the cell above it, so the calibration of E-003 holds.
 
+## The Rubik's cube in the nest (phase 7, D-025)
+
+- Node `cube_perception` (`cube_perception.launch.py`, started by `rubik.launch.py`), pure logic in `core/cube_view.py`, parameters in `perception.yaml` under `cube`. Inputs: measured depth, colour image, `camera_info`, TF; the nest frame and the cube size are fixed infrastructure.
+- Top face: depth points within 6 mm of the cube-top height → smallest rectangle (centre, yaw within ±45°, sides) and plane (tilt, roughness). Points lower than the top face and outside its outline: a layer out of square. Sticker colours: median of a patch around each of the nine projected sticker centres.
+- Outputs: `/perception/cube/detection` (pose, measured size, a score that falls when the cube is not a square block) and `/perception/cube/top_face` (3 × 3 `rgb8`, row 0 on the +y side, column 0 on the −x side), same stamp. No cube standing in the nest: an empty detection array, no face image.
+- This is the first use of colour for recognition. The node only measures colours; naming faces and stickers needs six views and is done by the consumer (`openfactory_manipulation/core/rubik/scan.py`).
+- The depth of a frame arrives after its colour (it goes through the depth model): the node keeps the last five colour frames and pairs them by stamp.
+- Stickers of the cube model must stand at least 0.8 mm out of the body or the renderer loses some of them (`rubik.yaml`, D-025).
+
 ## Learned perception
 
 - Only after the geometric baseline is measured on the same task (for the bin: E-003, E-004).

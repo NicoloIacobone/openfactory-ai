@@ -17,6 +17,13 @@ DEBUG_IMAGE_TOPIC = '/perception/debug/image'
 TOPICS = (DEPTH_TOPIC, COLOR_TOPIC, CAMERA_INFO_TOPIC, OBJECTS_TOPIC, DEBUG_POINTS_TOPIC,
           DEBUG_IMAGE_TOPIC)
 
+# cube_perception (Rubik's cube cell, phase 7)
+NEST_FRAME = 'nest'
+CUBE_DETECTION_TOPIC = '/perception/cube/detection'
+CUBE_FACE_TOPIC = '/perception/cube/top_face'
+CUBE_DEBUG_TOPIC = '/perception/cube/debug/image'
+CUBE_CLASS = 'rubik_cube'
+
 DESCRIPTION_PACKAGE = 'openfactory_description'
 INPUT_BIN = 'input'                       # key of the bin in cell.yaml `bins`
 UNKNOWN_CLASS = 'unknown'

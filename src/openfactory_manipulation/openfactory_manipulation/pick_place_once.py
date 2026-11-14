@@ -20,12 +20,14 @@ from .moveit_interface import ManipulationError
 from .pick_place import PickPlace
 
 
-def load_configs(config_path=None):
+def load_configs(config_path=None, gripper_file='gripper.yaml'):
+    """(pick_place.yaml, object catalog, gripper); `gripper_file`: the gripper of the cell in
+    use, a file of openfactory_description/config."""
     own = Path(get_package_share_directory('openfactory_manipulation')) / 'config'
     description = Path(get_package_share_directory(c.DESCRIPTION_PACKAGE)) / 'config'
     config = yaml.safe_load(Path(config_path or own / 'pick_place.yaml').read_text())
     catalog = yaml.safe_load((description / 'objects.yaml').read_text())
-    gripper = yaml.safe_load((description / 'gripper.yaml').read_text())
+    gripper = yaml.safe_load((description / gripper_file).read_text())
     return config, catalog, gripper
 
 

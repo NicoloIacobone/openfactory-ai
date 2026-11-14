@@ -10,7 +10,10 @@ cube:
   friction: 1.0               # Gazebo mu/mu2 of the cubie surfaces
   sticker:
     size: 0.016               # m, side of the coloured square on a cubie face
-    thickness: 0.0004         # m, how far it stands out of the black body
+    thickness: 0.001          # m, how far it stands out of the black body (visual only).
+                              # Thinner ones go missing in the camera image now and then: at
+                              # 0.4 mm the depth buffer of the renderer (Ogre 1) cannot tell a
+                              # sticker from the body under it
   body_color: [0.02, 0.02, 0.02, 1.0]
   colors:                     # sticker colour of the face each letter names
     U: [1.0, 1.0, 1.0, 1.0]   # white

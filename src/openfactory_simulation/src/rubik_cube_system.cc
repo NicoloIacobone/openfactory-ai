@@ -23,8 +23,16 @@
 // Welds are DetachableJoint entities, which the Physics system turns into joints of the
 // model tree. Physics creates new ones before a step and removes old ones after it, so the
 // welds are removed in one update and created in the next with no step in between. An axis
-// change takes three updates: square exactly; remove the welds; create the new ones. If a
-// layer moves in between, the old welds are put back and nothing has changed.
+// change takes three updates: square exactly; remove the welds; create the new ones.
+//
+// The two layers that were free must not move during those steps, and they are often loaded:
+// what asks for the new axis (a gripper turning the cube against the nest) pushes on them too.
+// So while the axis changes each of them is held by a torque equal and opposite to the one
+// the outside applies to it, read from its welds like the demand; if it moves all the same,
+// what moved it is worked out from how far it went in one step from rest, added to the hold,
+// and the squaring is tried again. The hold is what the pieces of a real cube do to a layer
+// once another one has started to turn. If a layer still moves when the welds are already
+// gone, the old welds are put back.
 
 #include <algorithm>
 #include <array>
@@ -48,6 +56,7 @@
 #include <gz/sim/components/JointPosition.hh>
 #include <gz/sim/components/JointPositionReset.hh>
 #include <gz/sim/components/JointTransmittedWrench.hh>
+#include <gz/sim/components/JointVelocityReset.hh>
 #include <gz/sim/components/Name.hh>
 #include <gz/transport/Node.hh>
 
@@ -61,8 +70,17 @@ using gz::sim::kNullEntity;
 namespace components = gz::sim::components;
 
 constexpr double kQuarter = M_PI / 2.0;
-// A layer that was set square and has not moved since is within this angle of it.
-constexpr double kExact = 1e-7;
+// A layer that was set square and has been held since is within this angle of it. It is
+// what a change of axis may leave in the welds: 2 urad is 0.05 um at a corner.
+constexpr double kStill = 2e-6;
+// Squarings tried in a row for one change of axis before the cube is left as it is.
+constexpr int kMaxAttempts = 50;
+// Share of the estimated torque added to the hold at every attempt, and the cap of the hold.
+constexpr double kHoldGain = 0.9;
+constexpr double kMaxHold = 2.0;
+// Steps in a row for which another axis must be asked for before it engages: a knock (the
+// cube landing, the fingers closing) does not change the axis, a push does.
+constexpr int kPersistence = 25;
 
 // Axle k turns the layer on side (k % 2 ? -1 : +1) of axis k / 2 of the cube frame
 // (x towards R, y towards U, z towards F).
@@ -106,6 +124,7 @@ class RubikCubeSystem : public gz::sim::System,
     this->detentStiffness = param("detent_stiffness", this->detentStiffness);
     this->detentWindow = param("detent_window", this->detentWindow);
     this->snapTolerance = param("snap_tolerance", this->snapTolerance);
+    this->layerInertia = param("layer_inertia", this->layerInertia);
     this->activeAxis = _sdf->Get<int>("initial_axis", this->activeAxis).first;
 
     this->core = model.LinkByName(_ecm, "core");
@@ -152,6 +171,7 @@ class RubikCubeSystem : public gz::sim::System,
     {
       return;
     }
+    const double dt = std::chrono::duration<double>(_info.dt).count();
     this->ReadState(_ecm);
 
     if (!this->welded)
@@ -165,21 +185,44 @@ class RubikCubeSystem : public gz::sim::System,
 
     // Every axle is force-controlled: the active ones feel the detent, the others carry
     // nothing and stay where the joint friction of the model leaves them.
+    const int demanded = this->Demand(_ecm);
     bool square = true;
-    bool exact = true;
+    bool still = true;
+    std::array<double, 2> error{0.0, 0.0};
+    for (int side = 0; side < 2; ++side)
+    {
+      error[side] = Error(this->axles[2 * this->activeAxis + side]);
+      square = square && std::abs(error[side]) <= this->snapTolerance;
+      still = still && std::abs(error[side]) <= kStill;
+    }
+    if (this->state == State::kDetach && !still)
+    {
+      // A free layer moved in the step after it was squared: from rest, under a torque t,
+      // it turns t dt^2 / inertia in one step. Hold against that torque and square again.
+      for (int side = 0; side < 2; ++side)
+      {
+        this->hold[side] = std::clamp(
+            this->hold[side] - kHoldGain * this->layerInertia * error[side] / (dt * dt),
+            -kMaxHold, kMaxHold);
+      }
+    }
     for (std::size_t k = 0; k < 6; ++k)
     {
       double torque = 0.0;
       if (static_cast<int>(k / 2) == this->activeAxis)
       {
-        const double error = Error(this->axles[k]);
-        if (std::abs(error) < this->detentWindow)
+        const int side = static_cast<int>(k % 2);
+        if (std::abs(error[side]) < this->detentWindow)
         {
-          torque = std::clamp(-this->detentStiffness * error, -this->detentTorque,
+          torque = std::clamp(-this->detentStiffness * error[side], -this->detentTorque,
                               this->detentTorque);
         }
-        square = square && std::abs(error) <= this->snapTolerance;
-        exact = exact && std::abs(error) <= kExact;
+        if (this->state != State::kActive)
+        {
+          // the joint turns about the outward normal: minus the cube axis on side 1
+          torque += this->hold[side] +
+                    (side == 0 ? 1.0 : -1.0) * this->moment[this->activeAxis][side];
+        }
       }
       _ecm.SetComponentData<components::JointForceCmd>(this->axles[k].joint, {torque});
     }
@@ -194,8 +237,10 @@ class RubikCubeSystem : public gz::sim::System,
           --this->settle;
           break;
         }
-        const int axis = this->Demand(_ecm);
-        if (axis < 0)
+        const int axis = demanded;
+        this->asked = axis >= 0 && axis == this->askedAxis ? this->asked + 1 : 0;
+        this->askedAxis = axis;
+        if (axis < 0 || this->asked < kPersistence)
         {
           break;
         }
@@ -206,24 +251,25 @@ class RubikCubeSystem : public gz::sim::System,
         }
         // Both active layers are within the tolerance: square them exactly. The axles of
         // the new axis carry nothing and start from zero.
-        for (int side = 0; side < 2; ++side)
-        {
-          const Axle &axle = this->axles[2 * this->activeAxis + side];
-          const long turns = std::lround(axle.angle / kQuarter);
-          _ecm.SetComponentData<components::JointPositionReset>(
-              axle.joint, {static_cast<double>(((turns % 4) + 4) % 4) * kQuarter});
-          _ecm.SetComponentData<components::JointPositionReset>(
-              this->axles[2 * axis + side].joint, {0.0});
-        }
         this->targetAxis = axis;
+        this->attempts = 0;
+        this->Square(_ecm);
         this->state = State::kDetach;
         break;
       }
       case State::kDetach:
-        if (!exact)
+        if (!still)
         {
-          // a layer moved during the step: try again from the start
-          this->state = State::kActive;
+          if (!square || ++this->attempts > kMaxAttempts)
+          {
+            // pushed out of the tolerance, or never at rest: the cube stays as it is
+            this->hold = {0.0, 0.0};
+            this->blocked = true;
+            this->state = State::kActive;
+            this->settle = 3;
+            break;
+          }
+          this->Square(_ecm);
           break;
         }
         for (auto &cubie : this->cubies)
@@ -235,7 +281,7 @@ class RubikCubeSystem : public gz::sim::System,
         break;
       case State::kAttach:
         this->ReadSlots();
-        if (exact)
+        if (still)
         {
           this->activeAxis = this->targetAxis;
           ++this->switches;
@@ -246,6 +292,7 @@ class RubikCubeSystem : public gz::sim::System,
           ++this->aborted;
         }
         this->CreateWelds(_ecm);
+        this->hold = {0.0, 0.0};
         this->state = State::kActive;
         this->settle = 3;
         break;
@@ -265,7 +312,7 @@ class RubikCubeSystem : public gz::sim::System,
     out << "{\"sim_time\": " << std::chrono::duration<double>(_info.simTime).count()
         << ", \"axis\": " << this->activeAxis << ", \"state\": \""
         << names[static_cast<int>(this->state)] << "\", \"switches\": " << this->switches
-        << ", \"aborted\": " << this->aborted
+        << ", \"aborted\": " << this->aborted << ", \"attempts\": " << this->attempts
         << ", \"blocked\": " << (this->blocked ? "true" : "false") << ", \"angles\": [";
     for (std::size_t k = 0; k < 6; ++k)
     {
@@ -329,17 +376,36 @@ class RubikCubeSystem : public gz::sim::System,
     }
   }
 
+  /// Sets the two active layers to exactly the nearest quarter turn, at rest, and the axles
+  /// of the axis that is to engage, which carry nothing, to zero.
+  private: void Square(EntityComponentManager &_ecm)
+  {
+    for (int side = 0; side < 2; ++side)
+    {
+      const Axle &axle = this->axles[2 * this->activeAxis + side];
+      const long turns = std::lround(axle.angle / kQuarter);
+      _ecm.SetComponentData<components::JointPositionReset>(
+          axle.joint, {static_cast<double>(((turns % 4) + 4) % 4) * kQuarter});
+      _ecm.SetComponentData<components::JointVelocityReset>(axle.joint, {0.0});
+      _ecm.SetComponentData<components::JointPositionReset>(
+          this->axles[2 * this->targetAxis + side].joint, {0.0});
+    }
+  }
+
   /// Angle of an active layer from the nearest quarter turn.
   private: static double Error(const Axle &_axle)
   {
     return _axle.angle - std::round(_axle.angle / kQuarter) * kQuarter;
   }
 
-  /// Largest torque the outside applies to a layer of each inactive axis, about that axis.
-  /// Returns the axis whose demand is the largest above the breakaway torque, or -1.
+  /// Reads from the welds the moment each outer layer needs from the rest of the cube to
+  /// stay as it is (`moment`, about the cube axes: minus what the outside applies to it) and
+  /// from it the demand on each inactive axis. Returns the inactive axis whose demand is the
+  /// largest above the breakaway torque, or -1. Without welds the last moments are kept.
   private: int Demand(const EntityComponentManager &_ecm)
   {
-    std::array<std::array<double, 2>, 3> torque{};
+    std::array<std::array<double, 2>, 3> sum{};
+    bool read = false;
     for (const auto &cubie : this->cubies)
     {
       auto wrench = _ecm.Component<components::JointTransmittedWrench>(cubie.weld);
@@ -347,24 +413,31 @@ class RubikCubeSystem : public gz::sim::System,
       {
         continue;
       }
+      read = true;
       const auto &w = wrench->Data();
       // The wrench is expressed in the cubie frame, at the cubie origin.
       const Vector3d force = cubie.rotation.RotateVector(
           Vector3d(w.force().x(), w.force().y(), w.force().z()));
-      const Vector3d moment = cubie.position.Cross(force) + cubie.rotation.RotateVector(
+      const Vector3d torque = cubie.position.Cross(force) + cubie.rotation.RotateVector(
           Vector3d(w.torque().x(), w.torque().y(), w.torque().z()));
       for (int axis = 0; axis < 3; ++axis)
       {
-        if (axis != this->activeAxis && cubie.slot[axis] != 0)
+        if (cubie.slot[axis] != 0)
         {
-          torque[axis][cubie.slot[axis] > 0 ? 0 : 1] += moment[axis];
+          sum[axis][cubie.slot[axis] > 0 ? 0 : 1] += torque[axis];
         }
       }
     }
+    if (!read)
+    {
+      return -1;
+    }
+    this->moment = sum;
     int best = -1;
     for (int axis = 0; axis < 3; ++axis)
     {
-      this->demand[axis] = std::max(std::abs(torque[axis][0]), std::abs(torque[axis][1]));
+      this->demand[axis] = axis == this->activeAxis ? 0.0 :
+          std::max(std::abs(sum[axis][0]), std::abs(sum[axis][1]));
       if (this->demand[axis] > this->breakaway &&
           (best < 0 || this->demand[axis] > this->demand[best]))
       {
@@ -381,6 +454,7 @@ class RubikCubeSystem : public gz::sim::System,
   private: double detentStiffness{3.0};
   private: double detentWindow{0.14};
   private: double snapTolerance{1.75e-3};
+  private: double layerInertia{1.5e-5};
 
   private: bool configured{false};
   private: bool welded{false};
@@ -394,6 +468,11 @@ class RubikCubeSystem : public gz::sim::System,
   private: int settle{0};
   private: int switches{0};
   private: int aborted{0};
+  private: int attempts{0};
+  private: int asked{0};
+  private: int askedAxis{-1};
+  private: std::array<double, 2> hold{0.0, 0.0};
+  private: std::array<std::array<double, 2>, 3> moment{};
   private: bool blocked{false};
   private: std::array<double, 3> demand{0.0, 0.0, 0.0};
 

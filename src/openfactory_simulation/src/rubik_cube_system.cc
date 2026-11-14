@@ -8,6 +8,14 @@
 //     middle slab to the core. The two axles turn under whatever torque reaches them, against
 //     the joint friction of the model and a detent that pulls a layer square when it is close
 //     to a quarter turn (a magnetic cube). The other four axles carry nothing and are held.
+//   - A layer of the active axis that is square and at rest is latched: its joint is given
+//     position limits a tenth of a microradian wide, so nothing can push it out of square.
+//     It is released when it is the layer the outside is turning: the torque applied to it
+//     about its own axis exceeds the breakaway torque and is at least as large as what is
+//     asked of any other axis. This is what the pieces of a real cube do: the layer that
+//     gives way first locks the others. Without it, a gripper that turns the cube against
+//     the nest pushed the layers of the other axis out of square in a single step, before
+//     any change of axis could begin, and the cube stayed locked.
 //   - The torque that the outside world applies to each layer of the other two axes is read
 //     from the wrench every weld transmits (a cubie is a leaf: what its weld carries is what
 //     pushes on it). When it exceeds the breakaway torque and both active layers are square
@@ -43,6 +51,7 @@
 #include <vector>
 
 #include <gz/math/Pose3.hh>
+#include <gz/math/Vector2.hh>
 #include <gz/math/Quaternion.hh>
 #include <gz/math/Vector3.hh>
 #include <gz/msgs/stringmsg.pb.h>
@@ -54,8 +63,10 @@
 #include <gz/sim/components/Joint.hh>
 #include <gz/sim/components/JointForceCmd.hh>
 #include <gz/sim/components/JointPosition.hh>
+#include <gz/sim/components/JointPositionLimitsCmd.hh>
 #include <gz/sim/components/JointPositionReset.hh>
 #include <gz/sim/components/JointTransmittedWrench.hh>
+#include <gz/sim/components/JointVelocity.hh>
 #include <gz/sim/components/JointVelocityReset.hh>
 #include <gz/sim/components/Name.hh>
 #include <gz/transport/Node.hh>
@@ -81,6 +92,12 @@ constexpr double kMaxHold = 2.0;
 // Steps in a row for which another axis must be asked for before it engages: a knock (the
 // cube landing, the fingers closing) does not change the axis, a push does.
 constexpr int kPersistence = 25;
+// Half width of the position limits of a latched layer, rad.
+constexpr double kLatch = 1e-7;
+// A layer is latched after it has been square and slower than this (rad/s) for this many
+// steps.
+constexpr double kRestSpeed = 0.02;
+constexpr int kRestSteps = 20;
 
 // Axle k turns the layer on side (k % 2 ? -1 : +1) of axis k / 2 of the cube frame
 // (x towards R, y towards U, z towards F).
@@ -91,6 +108,9 @@ struct Axle
   Entity link{kNullEntity};
   Entity joint{kNullEntity};
   double angle{0.0};
+  double velocity{0.0};
+  bool latched{false};
+  int rest{0};                // steps in a row at rest and square
 };
 
 struct Cubie
@@ -158,6 +178,7 @@ class RubikCubeSystem : public gz::sim::System,
     for (auto &axle : this->axles)
     {
       _ecm.CreateComponent(axle.joint, components::JointPosition());
+      _ecm.CreateComponent(axle.joint, components::JointVelocity());
     }
     this->publisher = this->node.Advertise<gz::msgs::StringMsg>(
         "/model/" + model.Name(_ecm) + "/mechanism");
@@ -225,6 +246,33 @@ class RubikCubeSystem : public gz::sim::System,
         }
       }
       _ecm.SetComponentData<components::JointForceCmd>(this->axles[k].joint, {torque});
+    }
+
+    if (this->state == State::kActive)
+    {
+      // Latch the active layers that rest square; release the one the outside is turning.
+      double others = 0.0;
+      for (int axis = 0; axis < 3; ++axis)
+      {
+        others = std::max(others, this->demand[axis]);
+      }
+      for (int side = 0; side < 2; ++side)
+      {
+        Axle &axle = this->axles[2 * this->activeAxis + side];
+        const double own = std::abs(this->moment[this->activeAxis][side]);
+        const bool driven = own > this->breakaway && own >= others;
+        const bool resting = std::abs(error[side]) <= this->snapTolerance &&
+                             std::abs(axle.velocity) <= kRestSpeed;
+        axle.rest = resting ? axle.rest + 1 : 0;
+        if (axle.latched && driven)
+        {
+          this->Latch(_ecm, axle, false);
+        }
+        else if (!axle.latched && !driven && axle.rest >= kRestSteps)
+        {
+          this->Latch(_ecm, axle, true);
+        }
+      }
     }
 
     switch (this->state)
@@ -318,6 +366,11 @@ class RubikCubeSystem : public gz::sim::System,
     {
       out << (k ? ", " : "") << this->axles[k].angle;
     }
+    out << "], \"latched\": [";
+    for (std::size_t k = 0; k < 6; ++k)
+    {
+      out << (k ? ", " : "") << (this->axles[k].latched ? 1 : 0);
+    }
     out << "], \"demand\": [" << this->demand[0] << ", " << this->demand[1] << ", "
         << this->demand[2] << "]}";
     gz::msgs::StringMsg msg;
@@ -334,6 +387,11 @@ class RubikCubeSystem : public gz::sim::System,
       if (position && !position->Data().empty())
       {
         axle.angle = position->Data()[0];
+      }
+      auto velocity = _ecm.Component<components::JointVelocity>(axle.joint);
+      if (velocity && !velocity->Data().empty())
+      {
+        axle.velocity = velocity->Data()[0];
       }
     }
     const auto corePose = gz::sim::worldPose(this->core, _ecm);
@@ -384,12 +442,36 @@ class RubikCubeSystem : public gz::sim::System,
     {
       const Axle &axle = this->axles[2 * this->activeAxis + side];
       const long turns = std::lround(axle.angle / kQuarter);
-      _ecm.SetComponentData<components::JointPositionReset>(
-          axle.joint, {static_cast<double>(((turns % 4) + 4) % 4) * kQuarter});
+      const double square = static_cast<double>(((turns % 4) + 4) % 4) * kQuarter;
+      _ecm.SetComponentData<components::JointPositionReset>(axle.joint, {square});
       _ecm.SetComponentData<components::JointVelocityReset>(axle.joint, {0.0});
-      _ecm.SetComponentData<components::JointPositionReset>(
-          this->axles[2 * this->targetAxis + side].joint, {0.0});
+      this->LatchAt(_ecm, this->axles[2 * this->activeAxis + side], square);
+      Axle &next = this->axles[2 * this->targetAxis + side];
+      _ecm.SetComponentData<components::JointPositionReset>(next.joint, {0.0});
+      this->LatchAt(_ecm, next, 0.0);
     }
+  }
+
+  /// Latches an axle where it is, or releases it.
+  private: void Latch(EntityComponentManager &_ecm, Axle &_axle, bool _on)
+  {
+    if (_on)
+    {
+      this->LatchAt(_ecm, _axle, _axle.angle);
+      return;
+    }
+    _ecm.SetComponentData<components::JointPositionLimitsCmd>(
+        _axle.joint, {gz::math::Vector2d(-1e16, 1e16)});
+    _axle.latched = false;
+    _axle.rest = 0;
+  }
+
+  /// Position limits that hold an axle at `_angle`.
+  private: void LatchAt(EntityComponentManager &_ecm, Axle &_axle, double _angle)
+  {
+    _ecm.SetComponentData<components::JointPositionLimitsCmd>(
+        _axle.joint, {gz::math::Vector2d(_angle - kLatch, _angle + kLatch)});
+    _axle.latched = true;
   }
 
   /// Angle of an active layer from the nearest quarter turn.

@@ -13,6 +13,7 @@ patterns=(
   'moveit_ros_move_group/move_group'
   'openfactory_simulation/depth_sensor_model'
   'openfactory_perception/scene_perception'
+  'openfactory_perception/cube_perception'
   'controller_manager/spawner'
   'rviz2/rviz2'
 )

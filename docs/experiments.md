@@ -460,3 +460,7 @@ Code of commit `bac8f6d` (run at `5fd34f7`, documents only in between), same con
 | Cube centre as seen against the simulator, horizontally | at most 0.74 mm apart | |
 | Simulated time of a scan | median 75 s (73–84 s) | |
 | Gazebo server memory during a scan | unchanged: flips make no change of axis | |
+
+### How the closing test went (all runs reported)
+
+- `p7_solve_eval_void1` (2026-11-14, evaluation cube 0 only): **void, an infrastructure fault**. The cell had been relaunched 26 times for parts B to D, and every `cube_perception` of those launches was still running: `scripts/vm/stop_cell.sh` did not stop that node (`docs/environment.md`, "Phase 7 cell"). Load average 31 on 4 cores, 0.9 GiB available, the simulation at 0.44 of real time. The cube was scanned correctly and 15 of the 21 moves of its solution were made (38 operations, each one verified and right in the simulator); then, while the 26 stale nodes were being killed from outside, the execution of the arc of a flip was aborted twice in a row (`execution_failed` at `tip`). The first time the cube, let go where it was, fell back into its seat and the cell tried again; the second time it fell off the pedestal: `cube_lost`, reported by the cell, cube not solved. The run was stopped there, the script fixed, the VM checked clean (no stale node, 0.7 GiB used) and the closing test started again from cube 0 with the same code, seeds and config. What it shows about the cell is kept under "Limits" below: a flip that fails while the cube is tipped drops the cube.

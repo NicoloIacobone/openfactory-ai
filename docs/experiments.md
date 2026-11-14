@@ -412,3 +412,34 @@ Commit `bac8f6d`, `rubik.yaml` sha256 `d61b159e7153` at the first run and the sa
 A turn takes 0.34 s of simulated time on the bench. The same run at commit `4c35c84`, before the change of axis was made robust to load (`phase7_mechanism_20261114T010056Z_s7000`): the same numbers, drift 7.7e-14 m. The Gazebo server grew from 118 to 658 MB over the 326 changes of axis (1.65 MB each; known issue, `docs/environment.md`).
 
 The spawn artefact of the bench: the plugin of a spawned model starts one step after its links, so every cubie falls g dt² = 9.8 µm before it is welded; with the core fixed to the world the whole grid sits that much lower, and each cubie carries that offset round with its layers. It is measured after the spawn and taken out of the drift; a free cube falls as one and has none.
+
+### Part B — turns by the arm (`phase7_rubik_turn_eval_20261114T033803Z_s71`): pass
+
+Commit `bac8f6d`, `phase7_rubik.yaml` sha256 `5a555f0e3151`, seed 71. A cube scrambled with 25 moves, face F down; 60 turns drawn by the seed (24 clockwise quarter turns, 19 anticlockwise, 17 half turns), made by `CubeHandler.turn` on its own. No camera in this part: the cell's verdict is its fingers and the execution result; ground truth after every turn. Re-run, with the cell launched: `python3 scripts/rubik_cell_test.py --part turn --set eval`.
+
+| Measure | Result | Threshold |
+|---|---|---|
+| Turns after which the simulator's cube is in the state and the orientation the logical model predicts, seated and square, with no state in collision | 60 of 60 (95 % Wilson interval 94–100 %) | ≥ 57 |
+| Failures the cell reported | 0 | |
+| Failures it did not report | 0 | |
+| Executed states in collision | 0 of 8665 | 0 |
+| Cube centre from its seat after a turn | median 0.70 mm, max 0.99 mm (the nest leaves 0.75 mm per side) | ≤ 2 mm |
+| Cube from the nest axes | at most 0.65° | ≤ 2° |
+| A cubie from its slot | at most 0.026 mm | ≤ 0.3 mm |
+| Time of a turn (wall, real-time factor about 1) | median 15.3 s, max 22.8 s | |
+
+Every turn was of the same face, the one the cube was spawned with down: a turn does not change which face is down. Other faces come down in parts C to F. The Gazebo server grew from about 415 to 797 MB in this run: the mechanism still changes axis a few times per turn (the fingers closing on the cube ask for another axis long enough), and each change leaks.
+
+### Part C — flips by the arm (`phase7_rubik_flip_eval_20261114T035437Z_s71`): pass
+
+Code of commit `bac8f6d` (run at `44e70b6`, documents only in between), same config and seed. The same cube; 60 flips drawn by the seed: 22 `over` and 38 `side`, with the cube turned 0, 1, 2 or 3 quarter turns in the air first (between 5 and 11 of each of the eight combinations). Every face was down at the start of a flip at least 7 times. Re-run: `python3 scripts/rubik_cell_test.py --part flip --set eval`.
+
+| Measure | Result | Threshold |
+|---|---|---|
+| Flips after which the simulator's cube is in the orientation the logical model predicts, its state unchanged, seated and square, with no state in collision | 60 of 60 (95 % Wilson interval 94–100 %) | ≥ 57 |
+| Failures the cell reported / did not report | 0 / 0 | |
+| Executed states in collision | 0 of 11 952 | 0 |
+| Cube centre from its seat after a flip | median 0.29 mm, max 0.79 mm | ≤ 2 mm |
+| Cube from the nest axes | at most 0.28° | ≤ 2° |
+| A cubie from its slot | at most 0.021 mm | ≤ 0.3 mm |
+| Time of a flip (wall) | median 19.7 s, max 27.0 s | |

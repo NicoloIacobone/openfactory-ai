@@ -27,7 +27,7 @@ N arms (N ≥ 2), each with its own conveyor. Arm *i* picks the objects that arr
 
 ## 2. Rubik's cube: one arm scrambles, one solves (later, the hard one)
 
-**Update 2026-11-14:** a first, simpler form of this idea is phase 7 (plan: D-022 in `docs/decisions.md`): one arm, a fixed nest that holds the bottom layer and one overhead camera solve a cube that starts scrambled. The cube is a mechanism of 26 cubies driven by a Gazebo system plugin, the solver is `kociemba`. What is left of this idea after phase 7: the second arm that scrambles and the handover between the two, and turning a layer with two grippers instead of a nest.
+**Update 2026-11-14:** a first, simpler form of this idea is phase 7, closed on E-007 (plan: D-022 in `docs/decisions.md`): one arm, a fixed nest that holds the bottom layer and one overhead camera solve a cube that starts scrambled. The cube is a mechanism of 26 cubies driven by a Gazebo system plugin, the solver is `kociemba`. What is left of this idea after phase 7: the second arm that scrambles and the handover between the two, and turning a layer with two grippers instead of a nest.
 
 Ideas that came up while building it (D-023 to D-027, E-007), none tried:
 

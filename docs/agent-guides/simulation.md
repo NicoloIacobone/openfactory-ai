@@ -30,6 +30,7 @@ Gazebo Harmonic (Sim 8.15) through `ros-jazzy-ros-gz`, with the Ogre 1 render en
 - Parameters are in `rubik.yaml` (`mechanism`); the plugin reads them from its SDF element, and a pytest checks that the names in `rubik_model.PLUGIN_PARAMS` appear in the plugin source. Friction values are set from bench measurements: DART's joint friction is not the SDF value once the joint is damped (`docs/environment.md`, "Phase 7 probes").
 - After rebuilding the plugin, relaunch the simulation: a running server keeps the library it loaded.
 - Every change of axis leaks about 1.3 MB in the Gazebo server (upstream, `docs/environment.md`): relaunch between long runs and watch the server's memory.
+- The Rubik's cube cell is `openfactory_bringup rubik.launch.py`: the cell's `simulation.launch.py` with `robot_xacro:=rubik_cell.urdf.xacro fixtures_xacro:=rubik_fixtures.urdf.xacro` (table, pedestal with the nest, camera above it; layout in `rubik_cell.yaml`) and the cell's world, bridge and controllers. A change to `simulation.launch.py` or `move_group.launch.py` must leave both cells launching.
 - Test bench: `ros2 launch openfactory_simulation rubik_bench.launch.py` (world `rubik_bench`, physics only, a quarter of real time) and `scripts/rubik_mechanism_test.py`. Run it after any change to the plugin, the model generator or `rubik.yaml`.
 
 ## Integration

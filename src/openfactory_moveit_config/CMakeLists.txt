@@ -12,6 +12,7 @@ install(DIRECTORY config launch srdf DESTINATION share/${PROJECT_NAME})
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_srdf test/test_srdf.py)
+  ament_add_pytest_test(test_rubik_srdf test/test_rubik_srdf.py)
   ament_add_pytest_test(test_ring_config test/test_ring_config.py)
 endif()
 

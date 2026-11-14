@@ -14,6 +14,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_urdf test/test_urdf.py)
   ament_add_pytest_test(test_ring test/test_ring.py)
   ament_add_pytest_test(test_ring_urdf test/test_ring_urdf.py)
+  ament_add_pytest_test(test_rubik_urdf test/test_rubik_urdf.py)
 endif()
 
 ament_package()

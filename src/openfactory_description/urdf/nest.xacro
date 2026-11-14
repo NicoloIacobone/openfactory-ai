@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  <!-- Pedestal and nest of the Rubik's cube cell (phase 7, D-024). The nest is a small bin
+       (bin.xacro) whose walls are lower than a cubie: it holds the bottom layer of the cube.
+       Frames: `pedestal` at the centre of its footprint on the table, `nest` at the centre of
+       the nest's inner floor, `height` above the table. Layout: config/rubik_cell.yaml, cube
+       size from config/rubik.yaml. parent: the table frame (centre of the table top). -->
+  <xacro:macro name="openfactory_nest" params="parent layout cube">
+    <xacro:property name="p" value="${layout['pedestal']}"/>
+    <xacro:property name="n" value="${layout['nest']}"/>
+    <xacro:property name="inner" value="${3 * cube['cube']['pitch'] + 2 * n['clearance']}"/>
+    <!-- the nest floor is the top `wall` of the pedestal height -->
+    <xacro:property name="body" value="${p['height'] - n['wall']}"/>
+    <xacro:property name="mass" value="2.0"/>
+
+    <link name="pedestal">
+      <visual>
+        <origin xyz="0 0 ${body / 2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${p['size'][0]} ${p['size'][1]} ${body}"/>
+        </geometry>
+        <material name="pedestal_grey">
+          <color rgba="0.35 0.35 0.4 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${body / 2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${p['size'][0]} ${p['size'][1]} ${body}"/>
+        </geometry>
+      </collision>
+      <!-- static in Gazebo (fixed to world); the inertia only keeps the URDF parsers happy -->
+      <inertial>
+        <origin xyz="0 0 ${body / 2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${mass * (p['size'][1] ** 2 + body ** 2) / 12}" ixy="0" ixz="0"
+                 iyy="${mass * (p['size'][0] ** 2 + body ** 2) / 12}" iyz="0"
+                 izz="${mass * (p['size'][0] ** 2 + p['size'][1] ** 2) / 12}"/>
+      </inertial>
+    </link>
+    <joint name="pedestal_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="pedestal"/>
+      <origin xyz="${p['xy'][0]} ${p['xy'][1]} 0" rpy="0 0 0"/>
+    </joint>
+
+    <xacro:openfactory_bin_at link="nest" parent="pedestal"
+                              inner_size="${[inner, inner, n['wall_height']]}" wall="${n['wall']}"
+                              xyz="0 0 ${p['height']}" rpy="0 0 0"/>
+  </xacro:macro>
+</robot>

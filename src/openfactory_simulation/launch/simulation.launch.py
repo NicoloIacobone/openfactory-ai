@@ -1,5 +1,6 @@
 """Gazebo cell: world, fixtures (table, bins, RGB-D camera), UR5e with gz_ros2_control, bridge,
-controllers.
+controllers. The Rubik's cube cell (phase 7) is the same launch with its own robot and fixtures
+xacro (robot_xacro:=rubik_cell.urdf.xacro fixtures_xacro:=rubik_fixtures.urdf.xacro).
 
 With camera:=true (default) Gazebo renders the camera with Ogre 1, which needs the VM display
 even when headless:=true (D-005): launch from a desktop terminal, or set DISPLAY and XAUTHORITY.
@@ -53,13 +54,15 @@ def generate_launch_description():
 
     # Same xacro and arguments for robot_state_publisher (which gz_ros2_control reads)
     # and the spawned robot; only the fixtures are split off into its own Gazebo model.
+    robot_xacro = LaunchConfiguration('robot_xacro')
     robot_with_fixtures = _xacro(
-        'openfactory_cell.urdf.xacro',
+        robot_xacro,
         include_fixtures='true', simulation_controllers=controllers_file)
     robot_only = _xacro(
-        'openfactory_cell.urdf.xacro',
+        robot_xacro,
         include_fixtures='false', simulation_controllers=controllers_file)
-    fixtures = _xacro('fixtures.urdf.xacro', camera_sensor=LaunchConfiguration('camera'))
+    fixtures = _xacro(LaunchConfiguration('fixtures_xacro'),
+                      camera_sensor=LaunchConfiguration('camera'))
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -135,6 +138,12 @@ def generate_launch_description():
             description='Apply the depth error model; false: ideal depth, range limits only.'),
         DeclareLaunchArgument(
             'seed', default_value='1', description='Seed of the depth noise.'),
+        DeclareLaunchArgument(
+            'robot_xacro', default_value='openfactory_cell.urdf.xacro',
+            description='Robot xacro in openfactory_description/urdf (takes include_fixtures).'),
+        DeclareLaunchArgument(
+            'fixtures_xacro', default_value='fixtures.urdf.xacro',
+            description='Fixtures xacro in openfactory_description/urdf (takes camera_sensor).'),
         gazebo,
         bridge,
         depth_sensor_model,

@@ -1,4 +1,5 @@
-"""MoveIt 2 move_group (and optionally RViz) for the cell.
+"""MoveIt 2 move_group (and optionally RViz) for the cell, or for the Rubik's cube cell with
+urdf:=rubik_cell.urdf.xacro srdf:=rubik_cell.srdf.xacro (phase 7).
 
 Reuses ur_moveit_config for kinematics, joint limits and the OMPL pipeline; the URDF,
 SRDF and controllers are the project's own. The builder logs "Cannot infer URDF/SRDF" for
@@ -9,7 +10,7 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -20,18 +21,20 @@ def _share(package):
     return Path(get_package_share_directory(package))
 
 
-def generate_launch_description():
+def _nodes(context):
     use_sim_time = LaunchConfiguration('use_sim_time')
     rviz = LaunchConfiguration('rviz')
+    urdf = LaunchConfiguration('urdf').perform(context)
+    srdf = LaunchConfiguration('srdf').perform(context)
 
     moveit_config = (
         MoveItConfigsBuilder(robot_name='ur', package_name='ur_moveit_config')
         # Same xacro as robot_state_publisher; the Gazebo controllers path is irrelevant here.
         .robot_description(
-            file_path=str(_share('openfactory_description') / 'urdf' / 'openfactory_cell.urdf.xacro'),
+            file_path=str(_share('openfactory_description') / 'urdf' / urdf),
             mappings={'include_fixtures': 'true'})
         .robot_description_semantic(
-            file_path=str(_share('openfactory_moveit_config') / 'srdf' / 'openfactory_cell.srdf.xacro'))
+            file_path=str(_share('openfactory_moveit_config') / 'srdf' / srdf))
         .trajectory_execution(
             file_path=str(_share('openfactory_moveit_config') / 'config' / 'moveit_controllers.yaml'))
         .planning_pipelines(pipelines=['ompl'])
@@ -65,10 +68,19 @@ def generate_launch_description():
         output='log',
     )
 
+    return [move_group, rviz_node]
+
+
+def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_sim_time', default_value='true', description='Use the simulator clock.'),
         DeclareLaunchArgument('rviz', default_value='false', description='Start RViz.'),
-        move_group,
-        rviz_node,
+        DeclareLaunchArgument(
+            'urdf', default_value='openfactory_cell.urdf.xacro',
+            description='Robot xacro in openfactory_description/urdf.'),
+        DeclareLaunchArgument(
+            'srdf', default_value='openfactory_cell.srdf.xacro',
+            description='SRDF xacro in openfactory_moveit_config/srdf.'),
+        OpaqueFunction(function=_nodes),
     ])

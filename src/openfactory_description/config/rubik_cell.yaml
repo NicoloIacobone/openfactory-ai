@@ -1,0 +1,24 @@
+# Rubik's cube cell (phase 7, D-024): the table and the arm of the cell (config/cell.yaml
+# `table`, `robot_mount`), a pedestal with a nest for the cube and one camera above it.
+# REP 103: metres, radians. The cube itself: config/rubik.yaml.
+
+# Pedestal standing on the table: it raises the nest so that the palm and the wrist stay clear
+# of the table when the gripper sets the cube down with the tool horizontal.
+pedestal:
+  xy: [0.25, 0.0]             # centre relative to the table top centre: 0.50 m in front of the
+                              # robot base (which is at x = -0.25)
+  size: [0.09, 0.09]          # x, y footprint
+  height: 0.08                # table top to the nest floor
+
+# Nest: a square seat that holds the bottom layer of the cube against turning. Frame `nest`:
+# centre of its inner floor, axes parallel to the table.
+nest:
+  clearance: 0.00075          # m per side between the cube and the walls
+  wall_height: 0.012          # m, lower than a cubie (0.019): only the bottom layer is held,
+                              # and the fingers pass over the walls when the tool is horizontal
+  wall: 0.008                 # m, wall and floor thickness
+
+# Camera of the cell (config/camera.yaml) straight above the nest, image right = world +x.
+camera_mount:
+  height: 0.70                # m, optical centre above the nest floor
+  rpy: [0.0, 1.5707963267948966, 1.5707963267948966]

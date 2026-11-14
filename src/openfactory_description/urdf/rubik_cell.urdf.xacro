@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<!-- Rubik's cube cell (phase 7, D-024): the UR5e and the gripper of the cell on the cell's
+     table, with a pedestal, a nest for the cube and one camera above it in place of the bins.
+     The arm, its names and its controllers are those of openfactory_cell.urdf.xacro.
+     include_fixtures:=true  -> robot + fixed infrastructure (floor, table, pedestal, nest,
+                                camera): robot_state_publisher, MoveIt.
+     include_fixtures:=false -> robot only: spawned in Gazebo next to the separate fixtures
+                                model (rubik_fixtures.urdf.xacro). -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="ur">
+  <xacro:arg name="ur_type" default="ur5e"/>
+  <xacro:arg name="include_fixtures" default="true"/>
+  <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
+  <xacro:arg name="gripper_file" default="$(find openfactory_description)/config/gripper.yaml"/>
+  <xacro:arg name="camera_file" default="$(find openfactory_description)/config/camera.yaml"/>
+  <xacro:arg name="layout_file" default="$(find openfactory_description)/config/rubik_cell.yaml"/>
+  <xacro:arg name="cube_file" default="$(find openfactory_description)/config/rubik.yaml"/>
+  <xacro:arg name="simulation_controllers" default=""/>
+
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/bin.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/nest.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/gripper.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/camera.xacro"/>
+
+  <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
+  <xacro:property name="gripper" value="${xacro.load_yaml('$(arg gripper_file)')}"/>
+  <xacro:property name="camera" value="${xacro.load_yaml('$(arg camera_file)')}"/>
+  <xacro:property name="layout" value="${xacro.load_yaml('$(arg layout_file)')}"/>
+  <xacro:property name="cube" value="${xacro.load_yaml('$(arg cube_file)')}"/>
+  <xacro:property name="mount" value="${layout['camera_mount']}"/>
+  <xacro:property name="table_top_z" value="${cell['table']['xyz'][2] + cell['table']['size'][2]}"/>
+  <xacro:property name="mount_xyz" value="${cell['robot_mount']['xyz']}"/>
+  <xacro:property name="mount_rpy" value="${cell['robot_mount']['rpy']}"/>
+  <xacro:property name="config_dir" value="$(find ur_description)/config/$(arg ur_type)"/>
+
+  <link name="world"/>
+
+  <xacro:if value="$(arg include_fixtures)">
+    <!-- Floor for collision checking only (top face at z = 0); Gazebo has its ground plane -->
+    <link name="floor">
+      <collision>
+        <origin xyz="0 0 -0.01" rpy="0 0 0"/>
+        <geometry>
+          <box size="4.0 4.0 0.02"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="floor_joint" type="fixed">
+      <parent link="world"/>
+      <child link="floor"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <xacro:openfactory_table parent="world" cell="${cell}"/>
+    <xacro:openfactory_nest parent="table" layout="${layout}" cube="${cube}"/>
+    <!-- camera body and frames only; the Gazebo sensor lives in the fixtures model -->
+    <xacro:openfactory_camera_at prefix="" parent="nest" camera="${camera}"
+                                 xyz="0 0 ${mount['height']}"
+                                 rpy="${mount['rpy'][0]} ${mount['rpy'][1]} ${mount['rpy'][2]}"
+                                 topic="${camera['simulator']['topic']}"
+                                 rate_hz="${camera['image']['rate_hz']}"/>
+  </xacro:if>
+
+  <!-- base_link pose in world: table top centre + mount offset (the table is not rotated) -->
+  <xacro:ur_robot
+    name="ur"
+    tf_prefix=""
+    parent="world"
+    joint_limits_parameters_file="${config_dir}/joint_limits.yaml"
+    kinematics_parameters_file="${config_dir}/default_kinematics.yaml"
+    physical_parameters_file="${config_dir}/physical_parameters.yaml"
+    visual_parameters_file="${config_dir}/visual_parameters.yaml"
+    force_abs_paths="true">
+    <origin xyz="${cell['table']['xyz'][0] + mount_xyz[0]} ${cell['table']['xyz'][1] + mount_xyz[1]} ${table_top_z + mount_xyz[2]}"
+            rpy="${mount_rpy[0]} ${mount_rpy[1]} ${mount_rpy[2]}"/>
+  </xacro:ur_robot>
+
+  <xacro:openfactory_gripper parent="tool0" gripper="${gripper}"/>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg simulation_controllers)</parameters>
+    </plugin>
+  </gazebo>
+
+  <xacro:ur_ros2_control name="ur" tf_prefix=""/>
+  <xacro:openfactory_gripper_ros2_control gripper="${gripper}"/>
+</robot>

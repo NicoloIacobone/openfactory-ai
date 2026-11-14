@@ -9,7 +9,7 @@ Applies when a task creates or changes packages, nodes, launch files, parameters
   | Package | Holds |
   |---|---|
   | `openfactory_description` | URDF/Xacro, meshes references, static robot config; Python module `ring` (layout and names of the ring of N arms) |
-  | `openfactory_simulation` | worlds, object models, sensors, randomization, simulation launch |
+  | `openfactory_simulation` | worlds, object models, sensors, randomization, simulation launch; the Gazebo system plugin of the Rubik's cube (C++, built against `gz_sim_vendor` and `gz_plugin_vendor`) |
   | `openfactory_moveit_config` | planning groups, kinematics, controllers, collision config |
   | `openfactory_perception` | RGB-D processing, point clouds, segmentation, pose estimation |
   | `openfactory_manipulation` | grasp generation/scoring, task orchestration, execution |

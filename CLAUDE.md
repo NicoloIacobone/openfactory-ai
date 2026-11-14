@@ -80,7 +80,7 @@ cd /mnt/openfactory-ai && python3 -m pytest -q -p no:cacheprovider tests
 
 Loop: RGB-D camera + robot state → `scene_perception` → `grasp_selector` → `task_planner` / MoveIt 2 → `robot_executor` → `scene_manager` (verify, update, recover) → back to perception. Components, interfaces and frames: `docs/architecture.md`.
 
-Two systems share the packages: the single-arm cell (`cell.launch.py`, phases 1–5) and the ring of N arms built from it (`ring.launch.py n:=N`, phase 6: arm *i* picks from bin *i* and places into bin *(i + 1) mod N*, one arm at a time). A change to shared code must leave both working; names of an arm come from `ArmNames`, never from a constant, in code the ring may run.
+Three systems share the packages: the single-arm cell (`cell.launch.py`, phases 1–5), the ring of N arms built from it (`ring.launch.py n:=N`, phase 6: arm *i* picks from bin *i* and places into bin *(i + 1) mod N*, one arm at a time) and the Rubik's cube cell (`rubik.launch.py`, phase 7, in progress: the cell's arm with a nest for the cube in place of the bins). A change to shared code must leave all of them working; names of an arm come from `ArmNames`, never from a constant, in code the ring may run.
 
 - Packages under `src/` named `openfactory_<role>` (`description`, `simulation`, `moveit_config`, `perception`, `manipulation`, `bringup`). Create a package only when a concrete responsibility needs it.
 - Standard messages first (`sensor_msgs`, `geometry_msgs`, `moveit_msgs`, `vision_msgs`). A custom `openfactory_interfaces` package only for a stable interface, after approval.

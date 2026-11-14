@@ -185,7 +185,23 @@ Ground truth is read as in the cell, by the harness only (`scripts/relay_benchma
 
 ## Rubik's cube cell
 
-Phase 7 (D-022, in progress). One arm, a nest that holds the bottom layer of the cube and one overhead camera are to solve a scrambled Rubik's cube whose layers turn only under the forces applied to it. A third system next to the cell and the ring, built from the same packages. Implemented so far: the cube model with its mechanism, the cube's logic and the mechanism test bench; the cell with the nest, the perception of the cube and the solve loop are not.
+Phase 7 (D-022, in progress). One arm, a nest that holds the bottom layer of the cube and one overhead camera are to solve a scrambled Rubik's cube whose layers turn only under the forces applied to it. A third system next to the cell and the ring, built from the same packages. Implemented so far: the cube model with its mechanism, the cube's logic, the mechanism test bench and the cell's layout (arm, nest, camera, MoveIt); the motions on the cube, the perception of the cube and the solve loop are not.
+
+### Layout and frames
+
+```
+ros2 launch openfactory_bringup rubik.launch.py rviz:=false
+```
+
+The table, the UR5e, the gripper, the controllers and the MoveIt configuration are the cell's: `rubik_cell.urdf.xacro` has the same robot, joint and link names as `openfactory_cell.urdf.xacro`, so the interfaces of the cell above hold unchanged (`/move_action`, `/compute_cartesian_path`, `/compute_ik`, `/execute_trajectory`, `/apply_planning_scene`, the two controllers, `/camera/...`). In place of the bins there is a pedestal with a nest, and the camera hangs above the nest. Layout in `openfactory_description/config/rubik_cell.yaml`; in Gazebo the fixtures are a separate model (`rubik_fixtures.urdf.xacro`), for TF and MoveIt they are links of the robot URDF, as in the cell. `simulation.launch.py` and `move_group.launch.py` take the xacro and SRDF file names as arguments whose defaults are the cell's; `rubik.launch.py` passes its own.
+
+| Frame | Parent | Notes |
+|---|---|---|
+| `pedestal` | `table` | centre of the pedestal's footprint on the table top, 0.50 m in front of the robot base |
+| `nest` | `pedestal` | centre of the nest's inner floor, 0.08 m above the table top (world (0.50, 0, 0.83)), axes parallel to the table. A square seat 58.5 mm wide with walls 12 mm high: it holds the bottom layer of the cube (19 mm) with 0.75 mm of play per side |
+| `camera_link`, `camera_optical_frame` | `nest` | the cell's camera 0.70 m above the nest floor, looking straight down, image right = world +x |
+
+The pedestal raises the nest so that the gripper can set the cube down with its tool horizontal: the fingers then pass 6.5 mm above the nest walls and the palm hangs beside the pedestal, 78 mm above the table. `openfactory_manipulation/core/rubik/station.py` holds the geometry of the grasps (ROS-free): the tool axis through the cube centre, the fingertips 2 mm above the top of the bottom layer in the grasp from above, so that the pads hold the two upper layers only.
 
 ### The cube model
 

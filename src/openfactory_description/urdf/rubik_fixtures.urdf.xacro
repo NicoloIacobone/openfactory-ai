@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!-- Fixtures of the Rubik's cube cell (table, pedestal with the nest, camera) as one Gazebo
+     model fixed to the world, spawned next to the robot (phase 7, D-024). The same macros build
+     them inside rubik_cell.urdf.xacro for TF and MoveIt. camera_sensor:=false leaves the camera
+     body without its Gazebo sensor (no display needed, D-005). -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="fixtures">
+  <xacro:arg name="cell_file" default="$(find openfactory_description)/config/cell.yaml"/>
+  <xacro:arg name="layout_file" default="$(find openfactory_description)/config/rubik_cell.yaml"/>
+  <xacro:arg name="cube_file" default="$(find openfactory_description)/config/rubik.yaml"/>
+  <xacro:arg name="camera_file" default="$(find openfactory_description)/config/camera.yaml"/>
+  <xacro:arg name="camera_sensor" default="true"/>
+  <xacro:property name="cell" value="${xacro.load_yaml('$(arg cell_file)')}"/>
+  <xacro:property name="layout" value="${xacro.load_yaml('$(arg layout_file)')}"/>
+  <xacro:property name="cube" value="${xacro.load_yaml('$(arg cube_file)')}"/>
+  <xacro:property name="camera" value="${xacro.load_yaml('$(arg camera_file)')}"/>
+  <xacro:property name="mount" value="${layout['camera_mount']}"/>
+
+  <xacro:include filename="$(find openfactory_description)/urdf/table.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/bin.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/nest.xacro"/>
+  <xacro:include filename="$(find openfactory_description)/urdf/camera.xacro"/>
+
+  <link name="world"/>
+  <xacro:openfactory_table parent="world" cell="${cell}"/>
+  <xacro:openfactory_nest parent="table" layout="${layout}" cube="${cube}"/>
+  <xacro:openfactory_camera_at prefix="" parent="nest" camera="${camera}"
+                               xyz="0 0 ${mount['height']}"
+                               rpy="${mount['rpy'][0]} ${mount['rpy'][1]} ${mount['rpy'][2]}"
+                               topic="${camera['simulator']['topic']}"
+                               rate_hz="${camera['image']['rate_hz']}"
+                               sensor="$(arg camera_sensor)"/>
+</robot>

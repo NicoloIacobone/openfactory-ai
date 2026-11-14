@@ -161,3 +161,25 @@ def test_ffmpeg_writes_a_gif_with_its_own_palette():
 def test_ffmpeg_rejects_bad_edits(kwargs):
     with pytest.raises(ValueError):
         fs.ffmpeg_args('in.mp4', 'out.mp4', **kwargs)
+
+
+def test_a_take_sees_simulators_and_the_scripts_that_drive_them():
+    lines = [
+        ' 169244 /bin/bash /home/nico/p7_demo.sh',
+        ' 174342 sleep 50',
+        ' 174370 gz sim -r -v 3 --render-engine ogre /home/nico/cell.sdf',
+        ' 174341 /usr/bin/python3 /opt/ros/jazzy/bin/ros2 launch openfactory_bringup x.launch.py',
+        '   1887 /usr/bin/gnome-shell',
+    ]
+    assert [line.split()[0] for line in fs.busy(lines)] == ['169244', '174370', '174341']
+
+
+def test_a_take_does_not_mistake_a_shell_that_names_them_or_itself():
+    lines = [
+        ' 183709 bash -c ps -eo pid,args | grep -E "gz sim|run_benchmark.sh|_demo.sh"',
+        ' 174367 /bin/sh -c ruby /opt/ros/jazzy/opt/gz_tools_vendor/bin/gz sim -r -v 3',
+        ' 190001 /bin/bash /mnt/openfactory-ai/scripts/vm/run_benchmark.sh ring --script film.py',
+        ' 190002 python3 scripts/film.py take ring',
+    ]
+    assert fs.busy(lines, own_pids={190001, 190002}) == []
+    assert len(fs.busy(lines)) == 1          # the runner of another take does count

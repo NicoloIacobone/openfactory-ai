@@ -570,3 +570,25 @@ With the final code every part passes its threshold: A the mechanism bench; B 60
 
 - What the numbers do not say. The evaluation seed had been met by the code before the fix (run 1 above, four cubes, two lost); the confirmation seed is the clean evidence. Fifteen cubes bound the success rate from below at 0.80 only (Wilson 95 % of 15 of 15). Nothing failed, so the recovery of D-027 was not measured (above).
 - Limits: the cube is a mechanism, not a contact model of a real cube: its pieces cannot come apart, a layer is squared exactly before another axis engages, and resting layers are latched until the torque on them exceeds the breakaway (D-023). The cube starts in the nest; a cube that leaves its seat is lost (`cube_lost`) and a flip that fails while the cube is tipped drops it. One camera above the nest: a solve takes two scans of five flips, about 160 s of its 13 minutes. Colours are flat-shaded renders with per-pixel depth noise (D-011, D-025). The Gazebo server leaks memory at every change of axis, so a long session needs a relaunch.
+
+## Filmed runs (2026-11-14, not results)
+
+The first takes of the filming tool (D-029): real runs through the benchmark harnesses, recorded on simulated time by a film camera created in the running world, no window. They add no evidence to E-006 and E-007 (development seeds, the cubes and scenes of earlier development runs); they are here because each video shows a run that was judged from ground truth. Code: `src/` as in `f88de0c`; `take.json` records `147a00f`, the commit of the filming tool, with the changes of the following commit to `scripts/film.py`, `film_shots.py` and `config/film.yaml` not yet committed for the second and third take.
+
+| Take | Run | Outcome | Video |
+|---|---|---|---|
+| `rubik` | `film_rubik` (`rubik_benchmark.py --part solve --set dev --index 0`) | solved, by the cell and by ground truth: 25-move scramble, 20-move solution, 50 operations (20 turns, 30 flips) and two scans, 0 states in collision; 674.6 s simulated in 2238.5 s of wall time | 681.5 s, 1280×720, 262.6 MB |
+| `ring`, first | `phase6_relay_n3_dev_20261114T210346Z_s6000` (`--arms 3 --set dev --handovers 12`) | 12 of 12 handovers, four laps, 0 of 10 345 states in collision, no undetected failure; the script exits 1 on a shortened run by design, so the take is recorded as failed | 311.9 s, 70.3 MB; superseded |
+| `ring` | `phase6_relay_n3_dev_20261114T212614Z_s6000` (`--arms 3 --set dev`, the full set) | passed: 20 of 20 handovers, 0 of 16 806 states in collision, 0 undetected failures, 0 false alarms, no object lost | 526.6 s, 1280×720, 118.3 MB |
+
+```bash
+# [VM] one take, detached; then wait for ~/NAME.done
+scripts/vm/run_benchmark.sh film_rubik --script film.py take rubik
+scripts/vm/run_benchmark.sh film_ring --script film.py take ring
+# [MAC]
+python3 scripts/film_edit.py fetch rubik && python3 scripts/film_edit.py edit rubik --speed 8   # 85 s
+python3 scripts/film_edit.py fetch ring && python3 scripts/film_edit.py edit ring --speed 6     # 88 s
+```
+
+With the film camera at 1280×720 the Rubik's cube cell ran at 0.30 of real time over the take and the ring of three arms made 41 handovers per hour of wall time (80 and 108 without it, E-006); simulated times are what they were (a handover of the ring about 26 s). No timeout was met at that speed.
+

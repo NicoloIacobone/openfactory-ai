@@ -138,14 +138,9 @@ def stop_cell():
 
 
 def running():
-    """Command lines of what a take would stop: a simulator, or a script that drives one
-    (a demo or a benchmark between two launches has no simulator but is still at work)."""
+    """What a take would stop (film_shots.busy), this process and its runner left out."""
     out = subprocess.run(['ps', '-eo', 'pid,args'], capture_output=True, text=True).stdout
-    own = {os.getpid(), os.getppid()}
-    marks = ('gz sim', 'ros2 launch openfactory_', 'run_rubik.sh', 'run_chain.sh',
-             'run_benchmark.sh', '_demo.sh')
-    return [line.strip() for line in out.splitlines()[1:]
-            if any(mark in line for mark in marks) and int(line.split()[0]) not in own]
+    return fs.busy(out.splitlines()[1:], own_pids={os.getpid(), os.getppid()})
 
 
 def launch(arguments):
@@ -165,6 +160,7 @@ def run_take(config, take_name, name, overrides, replace=False):
     take, video = config['takes'][take_name], config['video']
     params = fs.take_params(take, overrides)
     commands = fs.scenario(take, overrides)
+    commit = tl.git_commit(REPO)        # of the code that runs, not of what HEAD is at the end
     busy = running()
     if busy and not replace:
         say('something is running in the VM and a take would stop it (--replace to do so):\n  '
@@ -209,7 +205,7 @@ def run_take(config, take_name, name, overrides, replace=False):
     finally:
         stop_cell()
 
-    record = fs.take_record(name, take_name, params, video, take['shot'], tl.git_commit(REPO),
+    record = fs.take_record(name, take_name, params, video, take['shot'], commit,
                             sim_start, sim_end, results, video_file.name)
     if error:
         record.update(success=False, error=error)
@@ -235,7 +231,7 @@ def main():
                        help='override a parameter of the take')
     whole.add_argument('--replace', action='store_true',
                        help='stop whatever is running in the VM first')
-    start =sub.add_parser('start', help='start recording a running system')
+    start = sub.add_parser('start', help='start recording a running system')
     start.add_argument('take')
     start.add_argument('--name', help='name of the output (default: the take)')
     stop = sub.add_parser('stop', help='stop the recording started by `start`')

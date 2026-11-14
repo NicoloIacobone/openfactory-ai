@@ -367,3 +367,4 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
   - One fixed shot per take. More cameras are more renders.
   - The ffmpeg of the Mac (9.0.1 from Homebrew) has neither `drawtext` nor `subtitles`: no caption or speed label is burned into an edit.
 - **Status:** accepted.
+- **Update 2026-11-14:** first takes made, one of the Rubik's cube cell and one of the ring of three arms, both runs passed by their harness (`docs/experiments.md`, "Filmed runs"). The scenario of a take must be a full set of its benchmark: a shortened run exits 1 by design and the take is then recorded as failed.

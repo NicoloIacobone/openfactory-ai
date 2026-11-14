@@ -8,6 +8,7 @@ plays at the speed of the simulated system however slowly the simulator ran.
 """
 
 import math
+import re
 from xml.sax.saxutils import escape
 
 MODEL_PREFIX = 'film_camera'
@@ -15,6 +16,28 @@ TOPIC_PREFIX = 'film'
 VIDEO_FORMAT = 'mp4'
 VIDEO_FIELDS = ('width', 'height', 'fps', 'bitrate', 'hfov_deg', 'clip')
 TAKE_FIELDS = ('launch', 'warmup_s', 'shot', 'scenario')
+
+# what a take would stop: a simulator, a launch, or a script that drives them
+BUSY_MARKS = ('gz sim', 'ros2 launch openfactory_', 'run_rubik.sh', 'run_chain.sh',
+              'run_benchmark.sh', '_demo.sh')
+SHELL_COMMAND = re.compile(r'^(\S*/)?(ba|da|z)?sh -c ')
+
+
+def busy(ps_lines, own_pids=()):
+    """Lines of `ps -eo pid,args` (header removed) that show a simulator or a script driving
+    one. A demo or a benchmark between two launches has no simulator but is still at work, so
+    the scripts count too. A `sh -c "..."` is skipped: it is either the wrapper of a process
+    that is listed anyway, or a shell whose command text only mentions these names (the
+    remote shell of an SSH session that greps for them)."""
+    found = []
+    for line in ps_lines:
+        pid, _, args = line.strip().partition(' ')
+        args = args.strip()
+        if not pid.isdigit() or int(pid) in own_pids or SHELL_COMMAND.match(args):
+            continue
+        if any(mark in args for mark in BUSY_MARKS):
+            found.append(f'{pid} {args}')
+    return found
 
 
 def look_at(position, target):

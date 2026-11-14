@@ -332,3 +332,7 @@ Probe in the Rubik's cube cell (`rubik.launch.py rviz:=false`, no window), film 
 | 960×540, 10 fps | 0.62–0.66 |
 
 - The server encodes into a temporary file (`91.mp4`) in its working directory and moves it to the name asked for when the recording stops: the launch of a take starts in the home directory, because the share is read-only for the VM.
+- Whole takes (`docs/experiments.md`, "Filmed runs"): the Rubik's cube cell, 674.6 s simulated in 2238.5 s of wall time (0.30 of real time), Gazebo server 569 → 719 MB over the cube (the leak at every change of axis, as without the camera); the ring of three arms, 2.03 GiB used and 1.88 GiB available with a real-time factor of 0.21 at one sample, a turn of about 26 s simulated in 77–103 s of wall time. Files: 262.6 MB for 681.5 s (cube), 118.3 MB for 526.6 s (ring), at the 4 Mbit/s asked for or less.
+- Traps met: the check that nothing else is running matched the remote shell of the SSH session that typed the same names (fixed: `film_shots.busy` skips `sh -c` lines, tested); a take whose scenario is a shortened benchmark (`--handovers K`) is recorded as failed because the script exits 1 on anything but a full set, so the takes run full sets.
+- Left in the VM by the probe, not needed again: `~/film_probe.yaml`, `~/openfactory_data/videos/probe`, `probe_v` and `stills`, `/tmp/film_probe_trials`.
+

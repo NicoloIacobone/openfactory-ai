@@ -28,13 +28,15 @@ takes:
     scenario:
       - python3 scripts/rubik_benchmark.py --part solve --set {set} --index {index} --run-id {run_id}
 
-  # Phase 6: ring of N arms; seeded objects in every bin, then the relay loop alone.
+  # Phase 6: ring of N arms; seeded objects in every bin, then the relay loop alone, for the
+  # whole seed set (`dev`: 20 handovers). Not `--handovers K`: the benchmark never passes a
+  # run that is not a full set, so the take would be recorded as failed whatever it shows.
   ring:
     launch: [openfactory_bringup, ring.launch.py, 'n:={arms}', 'rviz:=false']
     warmup_s: 90
     shot:
-      position: [1.70, -1.70, 2.10]
-      look_at: [0.0, 0.0, 0.85]
-    params: {arms: 3, set: dev, handovers: 12}
+      position: [2.90, 0.0, 2.60]     # from the side of bin 0, between two arms: N = 3 in full
+      look_at: [0.0, 0.0, 1.25]
+    params: {arms: 3, set: dev}
     scenario:
-      - python3 scripts/relay_benchmark.py --arms {arms} --set {set} --handovers {handovers}
+      - python3 scripts/relay_benchmark.py --arms {arms} --set {set}

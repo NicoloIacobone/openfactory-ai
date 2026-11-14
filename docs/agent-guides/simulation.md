@@ -58,3 +58,12 @@ Gazebo Harmonic (Sim 8.15) through `ros-jazzy-ros-gz`, with the Ogre 1 render en
 - Few objects, coarse physics step tuned only as needed, camera at modest resolution and rate.
 - Measure RAM (`free -h`) whenever the simulation grows (another arm, camera or many objects) and record it in `docs/environment.md`.
 - If a camera sensor fails to render, record the error before trying workarounds.
+
+## Filming (D-029)
+
+- A video is a take of `scripts/config/film.yaml`: launch, shot, scenario. `scripts/film.py take TAKE` launches the system without the window, spawns the film camera (`scripts/film_shots.py`, pure, tested), records with Gazebo's `CameraVideoRecorder` on simulated time, runs the scenario, stops everything and writes `~/openfactory_data/videos/NAME/NAME.mp4` and `take.json`. Detached: `scripts/vm/run_benchmark.sh NAME --script film.py take TAKE --name NAME`, then wait for `~/NAME.done`.
+- A new element gets a video by adding a take; nothing under `src/` changes. The scenario should be a harness that judges the run from ground truth, so that the take records whether what it shows succeeded.
+- Frame a shot before a take: with the system running, `scripts/film.py still TAKE [--position X Y Z] [--look-at X Y Z] [--hfov DEG]` writes one PNG. Look at it with the arm at work, not upright as it spawns.
+- The film camera is never part of a system: not in a xacro, not bridged to ROS, not read by any node. It is a camera, so its memory was measured (`docs/environment.md`, "Filming").
+- It slows the simulation to about 0.3 of real time at 1280×720 (0.65 at 960×540; the frame rate does not matter). The video is not affected, the wait is. `film.py take` refuses to start while something else runs in the VM.
+- On the Mac: `scripts/film_edit.py fetch NAME`, then `edit NAME --speed 8 [--trim START END] [--gif]`, `info`, `frames`. Videos stay in `data/videos/` (git-ignored), never in the repo.

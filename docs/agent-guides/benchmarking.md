@@ -43,6 +43,7 @@ The log format lives in one pure module with tests (`scripts/trial_log.py`); eve
 - `scripts/rubik_cell_test.py --part turn|flip|mixed [--set dev|eval] [--count N] [--ops "turn:1 flip:over:0"]`: seeded turns and flips of the Rubik's cube cell (E-007 parts B, C), each compared with the logical model through ground truth: state, orientation, cube seated and square, no executed state in collision (the fingers on the cube are not a collision). Config `scripts/config/phase7_rubik.yaml`. In the VM: `scripts/vm/run_benchmark.sh NAME --script rubik_cell_test.py --part turn --set eval`.
 - `scripts/rubik_benchmark.py --part scan|solve|scramble --set S --index I --run-id NAME`: one cube of a seed through the cell's own loop (E-007 parts D, E, F); `--summarize --run-id NAME` writes the summary. Judged in `scripts/rubik_eval.py` (pure, tested). One cube per launch of the cell: `scripts/vm/run_rubik.sh NAME PART SET FIRST LAST` relaunches it for every cube, writes `~/NAME.log`, `~/NAME.progress` and `~/NAME.done`. `--dev-solver inverse` undoes the scramble instead of calling `kociemba`: a development aid, never a result.
 - `scripts/randomize_scene.py`: see the simulation guide.
+- `scripts/film.py take TAKE`: a video of a real run, with a benchmark harness as its scenario (D-029); see the simulation guide, "Filming".
 - Results summary (tables, plots) in `docs/experiments.md` with the run id, commit, config and the command that re-runs it; raw logs stay in `data/`.
 
 ## Learned models

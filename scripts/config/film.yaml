@@ -1,0 +1,40 @@
+# Filming tool (scripts/film.py, D-029): one take films one real run of a system, from a camera
+# of its own that is created in the running world and removed afterwards. SI units, world frame.
+# A new element of the project gets a video by adding a take here.
+
+video:
+  width: 1280                 # even numbers (H.264, yuv420p)
+  height: 720
+  fps: 15                     # frames per second of SIMULATED time: the rate of the sensor and
+                              # of the file. An edit sped up N times needs 30 / N of them
+  bitrate: 4000000            # bit/s
+  hfov_deg: 50.0              # horizontal field of view, unless the shot has its own
+  clip: [0.05, 30.0]          # m, render range
+
+lead_in_s: 3.0                # wall time recorded before the scenario starts
+lead_out_s: 3.0               # and after it ends
+
+takes:
+  # Phase 7: one scrambled cube in the nest, scanned, solved, scanned again; judged from
+  # simulator ground truth by the benchmark harness. The cube is cube `index` of the seed set.
+  rubik:
+    launch: [openfactory_bringup, rubik.launch.py, 'rviz:=false']
+    warmup_s: 40              # wall time from the launch to a cell that is ready
+    pythonpath_file: ~/openfactory_ws/solver_path     # kociemba's venv (D-028)
+    shot:
+      position: [1.20, -1.05, 1.40]   # the arm from its base to the gripper, the nest in front
+      look_at: [0.36, 0.0, 1.06]
+    params: {set: dev, index: 0, run_id: film_rubik}
+    scenario:
+      - python3 scripts/rubik_benchmark.py --part solve --set {set} --index {index} --run-id {run_id}
+
+  # Phase 6: ring of N arms; seeded objects in every bin, then the relay loop alone.
+  ring:
+    launch: [openfactory_bringup, ring.launch.py, 'n:={arms}', 'rviz:=false']
+    warmup_s: 90
+    shot:
+      position: [1.70, -1.70, 2.10]
+      look_at: [0.0, 0.0, 0.85]
+    params: {arms: 3, set: dev, handovers: 12}
+    scenario:
+      - python3 scripts/relay_benchmark.py --arms {arms} --set {set} --handovers {handovers}

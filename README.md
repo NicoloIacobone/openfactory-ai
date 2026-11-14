@@ -65,7 +65,7 @@ Each phase is gated by a stable, measured previous phase.
 | Path | Contents |
 |---|---|
 | `src/` | ROS 2 packages `openfactory_*` (description, simulation, moveit_config, perception, manipulation, bringup); `openfactory_simulation` also builds the Gazebo system plugin of the Rubik's cube |
-| `scripts/` | Scene randomization, benchmark runners, ground-truth evaluation, training of the learned ranking; `scripts/vm/` launches, stops and benchmarks detached in the VM |
+| `scripts/` | Scene randomization, benchmark runners, ground-truth evaluation, training of the learned ranking, videos of real runs (`film.py`, `film_edit.py`); `scripts/vm/` launches, stops and benchmarks detached in the VM |
 | `tests/` | Pure-logic tests of the scripts |
 | `docs/architecture.md` | Components, interfaces, frames |
 | `docs/decisions.md` | Stack and design decisions with rationale |
@@ -123,6 +123,14 @@ ros2 launch openfactory_bringup rubik.launch.py rviz:=false
 python3 <repo>/scripts/rubik_scene.py spawn --seed 3            # 25 seeded random moves; `truth` prints the simulator's state
 ros2 run openfactory_manipulation rubik                          # scan, solve, scan again (needs the pip package kociemba)
 python3 <repo>/scripts/rubik_benchmark.py --part solve --set dev --index 0 --run-id demo   # one cube, judged from ground truth
+```
+
+```bash
+# Video of a real run (D-029): the system is launched without a window, a film camera is created
+# in the world and Gazebo records it on simulated time while a benchmark harness runs
+python3 <repo>/scripts/film.py take rubik                        # or `ring`; takes are in scripts/config/film.yaml
+python3 <repo>/scripts/film_edit.py fetch rubik                  # on the machine with the repo and ffmpeg: copy it to data/videos/
+python3 <repo>/scripts/film_edit.py edit rubik --speed 8         # rubik_x8.mp4; --trim START END, --gif
 ```
 
 The commands that reproduce each phase's results are in `docs/experiments.md` (E-001 to E-007). The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.

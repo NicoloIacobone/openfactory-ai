@@ -13,6 +13,7 @@ The current state of the Mac and the VM first, then the dated log of audits, ins
 | Python | 3.12.3 (system), NumPy 1.26.4, OpenCV 4.6.0 |
 | ROS 2 | Jazzy, `rmw_fastrtps_cpp` (default) |
 | apt packages installed for this project | phase 0: `ros-jazzy-ros-gz` 1.0.24 (Gazebo Sim 8.15), `ros-jazzy-moveit` 2.12.4, `mesa-utils`; phase 1: `ros-jazzy-ur-simulation-gz` 2.5.0, `ros-jazzy-ur-moveit-config` 3.9.0, `ros-jazzy-ur-robot-driver` 3.9.0 (needed by the vendor UR launch only). Nothing since: the Gazebo system plugin of phase 7 builds against the headers of the `gz_*_vendor` packages that `ros-jazzy-ros-gz` brought in. |
+| Mac tools | ffmpeg 9.0.1 (Homebrew, already installed): edits the videos (`scripts/film_edit.py`, D-029). Built without `drawtext` and `subtitles` |
 | pip packages | none in the system Python. In a venv of this project, `~/openfactory_ws/.venv_solver` (phase 7, D-028): `kociemba` 1.2.1 with `cffi` 2.1.1, `future` 1.0.0, `pycparser` 3.11, from `requirements-vm.txt` |
 
 Memory with the full cell (Gazebo server with the camera, MoveIt, depth model, perception, benchmark harness, GNOME session; no RViz): 1.5 GiB used, 2.4 GiB available, real-time factor ≈ 1.0, load average 3–4 on 4 cores (phase 5). RViz adds about 260 MB, the Gazebo GUI about 400 MB. Idle VM: 1.0 GiB used.
@@ -72,6 +73,9 @@ The assistant drives the VM from the Mac with full control (`CLAUDE.md`, "Enviro
 - A running `gz sim` keeps the system plugins it loaded: after rebuilding `openfactory_simulation` (the Rubik's cube mechanism, phase 7) stop and relaunch the simulation, or the old library keeps running.
 - Gazebo Transport from Python: do not hold a subscription while calling a service (`node.request`). The request keeps the interpreter while it waits, the subscription callbacks then block the transport thread and the reply is never read: the call times out although the world served it (a model spawned by a call that "failed"). `GzScene.model_poses` subscribes and unsubscribes around one message for this reason; `scripts/rubik_mechanism_test.py` turns its subscriptions off around spawn and remove.
 - Persistent wrenches of Gazebo's `ApplyLinkWrench` system (`/world/<world>/wrench/persistent`) add up: publish one, clear it (`wrench/clear`) before the next on the same link.
+- Before `stop_cell.sh` or a launch, look for what the user may be running, driver scripts included: `ps -eo pid,lstart,etimes,args | grep -E '_demo.sh|run_rubik|run_chain|run_benchmark|gz sim|ros2 launch' | grep -v grep`. A script that relaunches the cell in a loop shows no simulator between two launches: on 2026-11-14 a check for `gz sim` alone missed a running demonstration and `stop_cell.sh` ended one of its cubes. `scripts/film.py take` refuses to start when this list is not empty (`--replace` overrides).
+- A detached launch typed as `cd ~ && setsid nohup ... &` keeps the SSH session open: the `&&` list runs in a subshell that holds the session's output until the launch ends. Give the launch its directory another way (`film.py` starts it with `cwd`), or keep `setsid nohup ... &` a command of its own.
+- Videos: `scripts/vm/run_benchmark.sh NAME --script film.py take TAKE --name NAME` (D-029); the Gazebo server writes its temporary video file in the directory it was launched from, which must be writable (not the share).
 - `doppelbot` shares the VM: build and test it only with its venv active (`source ~/ros2_ws/.venv/bin/activate && python -m colcon ...`); the system `colcon` rewrites its shebangs and breaks its `kociemba` solver.
 
 ## Log
@@ -307,3 +311,24 @@ Installed in the venv only: `kociemba` 1.2.1 (a C extension built through `cffi`
 How the cell finds it: the path of the venv's site-packages is written once in `~/openfactory_ws/solver_path` (`/home/nico/openfactory_ws/.venv_solver/lib/python3.12/site-packages`) and `scripts/vm/run_rubik.sh` puts it on `PYTHONPATH`. For `ros2 run openfactory_manipulation rubik` by hand: `export PYTHONPATH=$(cat ~/openfactory_ws/solver_path):$PYTHONPATH` after sourcing ROS and the workspace. The venv is never activated, so `colcon` and the ROS Python are not affected (the trap `doppelbot` met with its venv does not arise).
 
 Check: `test_rubik_cube.py` with the path set, 61 passed, the solver test among them (20 random scrambles solved in at most 25 moves, an impossible state refused). Without the path the same test is skipped and the cell ends as `solver_failed`.
+
+### Filming — 2026-11-14
+
+No package installed. Videos are recorded by Gazebo's own `CameraVideoRecorder` system on a camera that `scripts/film.py` creates in the running world (D-029); `libgz-sim8-camera-video-recorder-system.so` and `libgz-common5-av.so` (linked to `libavcodec` 60 with libx264) came with `ros-jazzy-ros-gz`. On the Mac, ffmpeg 9.0.1 was already installed.
+
+Probe in the Rubik's cube cell (`rubik.launch.py rviz:=false`, no window), film camera 1280×720 at 15 frames per second of simulated time:
+
+- The plugin loads on a sensor of a model spawned at run time: the server logs `Record video service on [/film/rubik/record_video]` and `Using encoder libx264`.
+- 7.0 s of simulated time (250.8 → 257.8), recorded in about 27 s of wall time, gave a file of 7.07 s: 107 frames, 1280×720, H.264, 431 kB. The video follows simulated time.
+- The render is lit and shaded, without shadows (Ogre 1); the arm, the gripper and the stickers of the cube read well.
+- Memory: 1.40 GiB used and 2.50 GiB available before, 1.52 and 2.38 while recording (the film camera costs about 120 MB); Gazebo server 516 MB resident.
+- **The film camera slows the simulation, and the resolution decides by how much, not the frame rate** (real-time factor, five samples three seconds apart; 1.00 without the camera):
+
+| Film camera | Real-time factor |
+|---|---|
+| 1280×720, 15 fps | 0.23–0.39 |
+| 1280×720, 10 fps | 0.33–0.38 |
+| 960×540, 15 fps | 0.59–0.67 |
+| 960×540, 10 fps | 0.62–0.66 |
+
+- The server encodes into a temporary file (`91.mp4`) in its working directory and moves it to the name asked for when the recording stops: the launch of a take starts in the home directory, because the share is read-only for the VM.

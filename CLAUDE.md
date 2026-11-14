@@ -47,7 +47,7 @@ A phase starts only after the previous one is closed, and closes only when its m
 ssh doppelvm 'source /opt/ros/jazzy/setup.bash && <command>'
 ```
 
-`source` is always explicit: a non-interactive shell does not load `.bashrc`. Long-running programs (the cell, benchmarks) run detached with their output in `~/<name>.log`: launches through `scripts/vm/launch.sh` (stopped with `stop_cell.sh`), benchmarks through `scripts/vm/run_benchmark.sh` and `run_chain.sh`. How to launch them, the display variables the camera needs, and the traps of driving the VM over SSH: `docs/environment.md`, "Operating the VM over SSH".
+`source` is always explicit: a non-interactive shell does not load `.bashrc`. Long-running programs (the cell, benchmarks) run detached with their output in `~/<name>.log`: launches through `scripts/vm/launch.sh` (stopped with `stop_cell.sh`), benchmarks through `scripts/vm/run_benchmark.sh` and `run_chain.sh`, videos of a run through the same runner (`--script film.py take TAKE`, D-029; edited on the Mac with `scripts/film_edit.py`). Before stopping or launching anything, check what is already running, driver scripts included. How to launch them, the display variables the camera needs, and the traps of driving the VM over SSH: `docs/environment.md`, "Operating the VM over SSH".
 
 ## Working with the user
 

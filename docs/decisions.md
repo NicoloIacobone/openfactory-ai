@@ -350,3 +350,20 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Licence:** `kociemba` is GPLv2. It is not copied into the repository nor linked into anything the repository ships; it is called at run time.
 - **Evidence:** installed 2026-11-14 with the user's approval (`docs/environment.md`); solver test passes; development cube solved with a 21-move solution (`p7_solve_devkoc`, E-007), then with the library read from the `doppelbot` venv, same version.
 - **Status:** accepted for phase 7.
+
+## D-029 — Videos: a film camera created in the running world, recorded by Gazebo on simulated time
+
+- **Context:** every element of the project should have a video of a real run, the Rubik's cube cell and the ring first. The VM runs the ring at 0.2–0.5 of real time. The Gazebo window costs about 400 MB, ended once with a segmentation fault with the ring (`docs/environment.md`, "Phase 6 ring") and on 2026-11-14 a demonstration with the window lost a cube when Gazebo stopped answering (cause not found: the log of that launch was overwritten).
+- **Decision:**
+  - A take films one real run, without the window. `scripts/film.py` launches the system, creates a **film camera** in the running world, starts the recording, runs the scenario of the take (a benchmark harness, so the run is judged from ground truth), stops the recording and the system. Takes are entries of `scripts/config/film.yaml`: launch, shot (position and the point looked at, world frame), scenario, parameters.
+  - The film camera is a Gazebo model of its own (`film_shots.camera_sdf`): static, no visual, no collision, one `camera` sensor, spawned and removed through the world's `create` and `remove` services like any harness object. No launch file, xacro or package changes, so the cell, the ring and the Rubik's cube cell are what they were. It is not bridged to ROS: nothing in perception or manipulation can read it (rules 2 and 5).
+  - The sensor carries Gazebo's `CameraVideoRecorder` system (`gz-sim-camera-video-recorder-system`, part of `ros-jazzy-ros-gz`) with `use_sim_time`: frames are stamped with simulated time, so the video plays at the speed of the simulated system however slowly the VM ran it. H.264 in mp4, encoded by the Gazebo server (libx264 through `gz-common`).
+  - Editing happens on the Mac with ffmpeg (`scripts/film_edit.py`): copy, speed up, cut, GIF. The recording is never changed; an edit is a new file with its speed in its name.
+  - Every take writes `take.json` next to the video: git commit, parameters (seed set, index), shot, simulated times, exit codes of the scenario (rule 6). A take whose scenario fails is recorded as failed and keeps its video.
+- **Alternatives:** the GUI's `VideoRecorder` (`/gui/record_video`, with `lockstep`) needs the window; a screen capture of the VM desktop records wall time and the window; a camera in the fixtures xacro behind a launch argument would change the description of three systems for something that is not part of them.
+- **Evidence** (probe 2026-11-14, `docs/environment.md`, "Filming"): the plugin loads on a sensor of a model spawned at run time; 7.0 s of simulated time recorded in 27 s of wall time gave a file of 7.07 s, 1280×720, H.264, 15 frames per second; the render is lit and shaded (Ogre 1, no shadows).
+- **Limits:**
+  - The film camera slows the simulation: real-time factor 1.0 → about 0.3 at 1280×720 and about 0.65 at 960×540 in the Rubik's cube cell; the frame rate (10 or 15) makes no difference. A take therefore lasts about three times its simulated time.
+  - One fixed shot per take. More cameras are more renders.
+  - The ffmpeg of the Mac (9.0.1 from Homebrew) has neither `drawtext` nor `subtitles`: no caption or speed label is burned into an edit.
+- **Status:** accepted.

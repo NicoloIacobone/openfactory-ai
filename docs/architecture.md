@@ -108,10 +108,13 @@ The trial harness talks to Gazebo directly through Gazebo Transport (`scripts/gz
 |---|---|---|
 | `/world/cell/create/blocking`, `/world/cell/remove/blocking` (`gz.msgs.EntityFactory` / `Entity` → `Boolean`) | spawn and remove objects between trials | harness only |
 | `/world/cell/dynamic_pose/info` (`gz.msgs.Pose_V`, model poses in `world`) | ground truth for success evaluation and debug labels | harness evaluation only |
+| `film/<take>/image` (`gz.msgs.Image`), `/film/<take>/record_video` (`gz.msgs.VideoRecord` → `Boolean`) | the film camera of a take and its recorder (D-029) | `scripts/film.py` only |
 
 Ground truth is not bridged to ROS (D-009): no ROS node can subscribe to it, so perception and manipulation cannot leak it. If a ROS ground-truth topic is ever needed for debugging, it lives under `/ground_truth/`. The ideal depth image (`/camera/depth/image_ideal`) is simulator data too: only the depth sensor model and the harness's calibration check read it. A pytest in `openfactory_perception` and one in `openfactory_manipulation` fail if a file of the package names ground truth, Gazebo transport, the bridge or (perception) the ideal depth topic.
 
 Scene randomization (`scripts/randomize_scene.py`) is seeded per scene from (seed, scene index); scenes hold separate objects resting in their catalog orientation, one to three in phase 3, five close to each other and to the walls in phase 4 (`scripts/config/phase4_bin_picking.yaml`); in phase 5 a cylinder may lie on its side and a prism stand on an end face (`tumbled_share`, `scripts/config/phase5_tumbled.yaml`, rest states in `scripts/scene_objects.py`). The benchmark harness (`scripts/benchmark.py`) reads ground truth after every attempt of the cell and judges it in `scripts/bin_picking_eval.py`; the cell's own verdict comes only from its fingers and its camera.
+
+Videos (D-029): `scripts/film.py` films a real run from a film camera, a static Gazebo model `film_camera_<take>` with no body and one camera sensor, which it creates in the running world for the take and removes afterwards. Gazebo's `CameraVideoRecorder` system on that sensor writes the video on simulated time. The camera is outside the ROS graph, like ground truth: it is not bridged, it has no frame in TF and no node reads it.
 
 ## Ring of N arms
 

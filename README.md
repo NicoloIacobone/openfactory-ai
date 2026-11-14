@@ -2,11 +2,13 @@
 
 A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recovers in a closed loop**: a simulated RGB-D camera observes unordered objects, the system chooses a feasible grasp, plans a collision-aware motion, picks and places the object, verifies the outcome and replans after failures. Inspired by industrial 3D-vision bin-picking platforms (e.g. Mujin).
 
-The first deliverable, an **autonomous random bin-picking cell**, is done, and so is the first cell with several arms, a ring of N of them passing objects round. Next: more multi-arm ideas (`docs/ideas.md`), then a production line and a multi-robot factory.
+The first deliverable, an **autonomous random bin-picking cell**, is done, and so is the first cell with several arms, a ring of N of them passing objects round. In progress: a cell that solves a physically simulated Rubik's cube. Then more multi-arm ideas (`docs/ideas.md`), a production line and a multi-robot factory.
 
 ## Status
 
-**Phase 6, multi-arm cells, is closed:** a relay loop runs as a ring of N arms and N bins, N chosen at launch (`docs/architecture.md`, "Ring of N arms"), and passes its test for N = 2 and N = 3 (E-006). What may come next is in `docs/ideas.md`.
+**Phase 6, multi-arm cells, is closed:** a relay loop runs as a ring of N arms and N bins, N chosen at launch (`docs/architecture.md`, "Ring of N arms"), and passes its test for N = 2 and N = 3 (E-006). 
+
+**Phase 7, the Rubik's cube, is in progress:** one arm, a fixed nest and one camera are to solve a scrambled cube whose layers turn only under the forces the gripper applies (plan: D-022 in `docs/decisions.md`). So far only the ROS-free cube logic exists. What may come after it is in `docs/ideas.md`.
 
 A UR5e with a parallel-jaw gripper empties on its own an input bin holding five cubes, cylinders and prisms at random poses, including cylinders lying on their side and prisms standing on an end face, which its geometric perception does not recognise. It grasps those as clusters of unknown shape through the same hard filters (gripper geometry, walls, neighbours, then MoveIt IK and straight-line checks), and ranks the feasible grasps with a logistic model of grasp success trained on 320 simulated attempts.
 
@@ -42,7 +44,8 @@ Known limits:
 | 4 | Random bin picking | Autonomous MVP with metrics |
 | 5 | AI and robustness | Baseline vs learned grasp scoring, recovery, quantitative experiments |
 | 6 | Multi-arm cells | N arms passing objects around a ring of bins, N chosen at launch |
-| later | Ideas, then factory expansion | Conveyors and parallel arms for the ring, one arm scrambling a Rubik's cube and another solving it, a catalog of qualified robots (`docs/ideas.md`); conveyor-fed line, inspection, scheduling |
+| 7 | Rubik's cube | One arm reads a scrambled cube with the camera and solves it physically |
+| later | Ideas, then factory expansion | Conveyors and parallel arms for the ring, a second arm that scrambles the cube, a catalog of qualified robots (`docs/ideas.md`); conveyor-fed line, inspection, scheduling |
 
 Each phase is gated by a stable, measured previous phase.
 

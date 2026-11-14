@@ -1,6 +1,6 @@
 # Architecture
 
-Components, interfaces and frames of the single-arm cell as implemented through phase 5, and of the ring of N arms built from it in phase 6 ("Ring of N arms" below). The Rubik's cube cell of phase 7 ("Rubik's cube cell" at the end) is built; its closing test has not run yet. A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
+Components, interfaces and frames of the single-arm cell as implemented through phase 5, and of the ring of N arms built from it in phase 6 ("Ring of N arms" below). The Rubik's cube cell of phase 7 ("Rubik's cube cell" at the end) is built and passed its closing test (E-007). A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
 
 ## System loop
 
@@ -185,7 +185,7 @@ Ground truth is read as in the cell, by the harness only (`scripts/relay_benchma
 
 ## Rubik's cube cell
 
-Phase 7 (D-022 to D-027, in progress). One arm, a nest that holds the bottom layer of the cube and one overhead camera solve a scrambled Rubik's cube whose layers turn only under the forces applied to it. A third system next to the cell and the ring, built from the same packages.
+Phase 7 (D-022 to D-028, E-007). One arm, a nest that holds the bottom layer of the cube and one overhead camera solve a scrambled Rubik's cube whose layers turn only under the forces applied to it. A third system next to the cell and the ring, built from the same packages.
 
 ```
 ros2 launch openfactory_bringup rubik.launch.py rviz:=false

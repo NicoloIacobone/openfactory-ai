@@ -31,6 +31,7 @@ N arms (N ≥ 2), each with its own conveyor. Arm *i* picks the objects that arr
 
 Ideas that came up while building it (D-023 to D-027, E-007), none tried:
 
+- A test of the recoveries the closing test never needed (E-007: nothing failed in 16 cubes): a development harness that disturbs the cube between two operations (a layer left out of square, a face turned behind the cell's back) and checks that the cell realigns, scans again and still ends right. Until then `realign` and the rescan of D-027 are untested code.
 - The cube starting anywhere on the table or in a bin: the cell of phase 5 picks it (a 57 mm cube is a catalog shape away) and seats it in the nest.
 - A faster scan: a second camera looking at the cube from the side would show three faces at once; today six views cost five flips, about 80 s.
 - Fewer flips: a second nest that holds two layers would let the arm turn the top face as well, so two opposite faces per orientation; or choosing among equivalent solutions the one with the fewest changes of face.

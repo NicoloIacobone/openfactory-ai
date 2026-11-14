@@ -477,3 +477,96 @@ Same configs, seeds and commands as above; the only change is the latch of resti
 | C, 60 flips by the arm | `phase7_rubik_flip_eval_20261114T112459Z_s71` | 60 of 60; 0 failures reported or unreported; 0 of 10 092 states in collision; cube at most 0.82 mm from its seat | 60 of 60, 0 of 11 952 |
 
 Times with a clean VM: 12.6 s per turn and 17.0 s per flip on average (wall).
+
+### Part E — the closing test, evaluation seed (`p7_solve_eval`): 10 of 10
+
+Final code (`dd267d5`), clean VM, ten cubes of seed 71, each scrambled with 25 seeded moves and spawned in a seeded orientation, the cell relaunched for every cube: `scripts/vm/run_rubik.sh p7_solve_eval solve eval 0 9`. Cube 0 records commit `dd267d5`, cubes 1 to 9 record `1e6cff3`: that commit was made while the run was going and changes `docs/experiments.md` only.
+
+| | Result | Threshold |
+|---|---|---|
+| Cubes solved (the cell says `solved`, and the simulator's cube is solved, square and seated, with no executed state in collision) | **10 of 10** (Wilson 95 %: 0.72–1.00) | ≥ 9 |
+| Cubes called solved that are not | 0 | 0 |
+| Executed joint states in collision | 0 of 75 947 | 0 |
+| Operations | 531: 207 turns and 324 flips (100 of them in the two scans of each cube) | |
+| Operations the cell reported as failed | 0 | |
+| Operations that left the cube other than the cell believed (state, orientation, square, seated) | 0 of 531 | |
+| Scans per cube | 2 (the first and the final one): no mismatch, no rescan, no realign | |
+| Solution | 20 or 21 moves (mean 20.7), every move made once | |
+| Operations per cube | 51 to 54 (mean 53.1) | |
+| Cube away from its seat after an operation | at most 1.01 mm and 1.39° | 2 mm, 2° |
+| Simulated time per cube | mean 793 s (769–825 s); wall 826 s; 14.6 min with the relaunch | |
+| Time per operation (wall) | turn 10.5 s, flip 15.3 s | |
+| Gazebo server memory over one cube | from 414 MB to 518–586 MB | |
+
+The seed is the one of the failed run `p7_solve_eval_run1` (above): the cubes that run lost, 2 and 3, are solved here, and so are the six it never reached. The confirmation seed (72) had not been used before.
+
+### Part E — the closing test, confirmation seed (`p7_solve_confirm`): 5 of 5
+
+Same code and config, five cubes of seed 72, a seed no run had used: `scripts/vm/run_rubik.sh p7_solve_confirm solve confirm 0 4` (commit recorded: `1e6cff3`, the code of `dd267d5`).
+
+| | Result | Threshold |
+|---|---|---|
+| Cubes solved | **5 of 5** (Wilson 95 %: 0.57–1.00) | ≥ 4 |
+| Cubes called solved that are not | 0 | 0 |
+| Executed joint states in collision | 0 of 38 733 | 0 |
+| Operations | 276: 106 turns and 170 flips (50 of them in the scans) | |
+| Operations the cell reported as failed | 0 | |
+| Operations that left the cube other than the cell believed | 0 of 276 | |
+| Scans per cube | 2: no rescan, no realign | |
+| Solution | 21 or 22 moves (mean 21.2), every move made once | |
+| Operations per cube | 53 to 57 (mean 55.2) | |
+| Cube away from its seat after an operation | at most 0.98 mm and 1.24° | 2 mm, 2° |
+| Simulated time per cube | mean 819 s (803–837 s); wall 843 s | |
+| Gazebo server memory over one cube | from 414 MB to 519–590 MB | |
+
+**Part E passes**: 10 of 10 and 5 of 5, no executed state in collision, no cube called solved that is not. In these fifteen cubes nothing went wrong, so the recovery paths of D-027 (retry, realign, scan again) were not exercised by the closing test. In the recorded runs they ran only before the fix (above): a failed flip was tried again once, and three cubes ended as `cube_lost`, each reported by the cell. No recorded run has made a `realign` or a scan again after a mismatch: those two paths of `RubikSolver` are written and have never run on a cube, and no test covers them.
+
+### Part F — a cube the arm scrambles itself, then solves (`p7_scramble_eval`): pass
+
+Same code and config (commit recorded: `1e6cff3`, the code of `dd267d5`); cube 0 of seed 71 spawned **solved**, in its seeded orientation: `scripts/vm/run_rubik.sh p7_scramble_eval scramble eval 0 0`. The cell scans it, makes the 25 seeded moves of the scramble with its own flips and turns, solves the state it then believes (kept from the scan through every verified operation) and scans again.
+
+| | Result |
+|---|---|
+| Outcome | the cell says `solved`; the simulator's cube is solved, square and seated |
+| Scramble | 25 moves in 56 operations (25 turns, 31 flips); the simulator's state after it is the seeded scramble |
+| Solution | 21 moves in 43 operations (21 turns, 22 flips) |
+| Scans | 2 (before the scramble and at the end), 10 flips |
+| Operations | 109: 46 turns, 63 flips; 0 reported as failed; 0 that left the cube other than the cell believed |
+| Executed joint states in collision | 0 of 17 813 |
+| Cube away from its seat after an operation | at most 1.00 mm and 1.03° |
+| Time | 1552 s simulated, 1922 s wall |
+| Gazebo server memory | from 414 MB to 764 MB: 46 moves in one launch (`docs/environment.md`, the leak at every change of axis) |
+
+One run, as planned: it shows that the loop holds for twice the moves of a solve; it is not a rate.
+
+### Part D again, with the final mechanism (`p7_scan_eval2`): pass
+
+Same 20 cubes and command as part D above, run id `p7_scan_eval2`, clean VM (commit recorded: `1e6cff3`, the code of `dd267d5`).
+
+| Measure | Result | Before the fix |
+|---|---|---|
+| Cubes whose state and orientation the cell read as the simulator has them | 20 of 20 | 20 of 20 |
+| Wrong states accepted as valid; scans repeated; stickers not clearly nearest to one centre | 0; 0; 0 of 1080 | the same |
+| Flips | 100 of 100 left the cube seated and square; 0 failures reported by the cell | the same |
+| Executed states in collision | 0 of 15 172 | 0 of 32 800 (the VM was loaded, more states per flip) |
+| Views after a flip (100): lowest score | 0.78 | 0.78 |
+| Simulated time of a scan | median 80 s (79–82 s); wall 82–86 s | median 75 s |
+| Gazebo server memory during a scan | 414 MB, at most 6 MB more | unchanged |
+
+### The cell and the ring after phase 7 (smoke runs, not results)
+
+Phase 7 changed code the other two systems run (`gripper.xacro`, `simulation.launch.py`, `move_group.launch.py`, `moveit_interface.py`, `pick_place_once.py`, `gz_scene.py`, `stop_cell.sh`). With the final code (commit recorded: `1e6cff3`): `colcon test` 601 tests, 0 failures, 1 skipped; `pytest tests` 178 passed; and two short runs, each in a fresh launch.
+
+| System | Run | Outcome |
+|---|---|---|
+| Single-arm cell, `cell.launch.py` | `phase4_bin_picking_dev_20261114T164348Z_s1000` (`--set dev --scenes 2`) | 9 of 9 picks, 9 of 10 objects deposited, 0 of 1604 states in collision, 0 undetected failures; scene 0 `bin_empty`, scene 1 `no_feasible_grasp` with one cylinder by a wall left in the bin: the same ends and counts as the phase 4 runs of these two scenes (`…20261111T172211Z…`, `…20261111T190309Z…`) |
+| Ring of two arms, `ring.launch.py n:=2` | `phase6_relay_n2_dev_20261114T164827Z_s6000` (`--set dev --handovers 6`) | 6 of 6 handovers, three laps, each arm 3 of 3, 0 of 1602 states in collision, no object lost |
+
+Both scripts exit 1 on a shortened run by design (the thresholds are for full sets).
+
+### Conclusion of E-007 (2026-11-14)
+
+With the final code every part passes its threshold: A the mechanism bench; B 60 of 60 turns; C 60 of 60 flips; D 20 of 20 scans; **E 10 of 10 cubes on the evaluation seed and 5 of 5 on the confirmation seed**; F the cube scrambled by the arm solved. Over parts E and F: 16 cubes, 916 operations, 0 of 132 493 executed states in collision, 0 cubes called solved that are not, 0 operations whose outcome the cell misjudged.
+
+- What the numbers do not say. The evaluation seed had been met by the code before the fix (run 1 above, four cubes, two lost); the confirmation seed is the clean evidence. Fifteen cubes bound the success rate from below at 0.80 only (Wilson 95 % of 15 of 15). Nothing failed, so the recovery of D-027 was not measured (above).
+- Limits: the cube is a mechanism, not a contact model of a real cube: its pieces cannot come apart, a layer is squared exactly before another axis engages, and resting layers are latched until the torque on them exceeds the breakaway (D-023). The cube starts in the nest; a cube that leaves its seat is lost (`cube_lost`) and a flip that fails while the cube is tipped drops it. One camera above the nest: a solve takes two scans of five flips, about 160 s of its 13 minutes. Colours are flat-shaded renders with per-pixel depth noise (D-011, D-025). The Gazebo server leaks memory at every change of axis, so a long session needs a relaunch.

@@ -262,6 +262,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
 - **Evidence so far:** read-only checks of 2026-11-13. The VM has the headers and CMake configuration of gz-sim 8 and gz-physics 7.8 in the ROS vendor packages, `g++` 13 and `cmake` 3.28: a system plugin builds with nothing installed. In the gz-sim 8 sources, `Physics::Update` creates new `DetachableJoint` entities before the step and removes the old ones after it, so welds can be swapped without a step in which the cubies are free; `JointPositionReset` exists; contact messages carry the contact force. In gz-physics 7 a fixed joint attached to a link that is a free root becomes a `WeldJoint` of the tree, not a soft constraint.
 - **Update 2026-11-14:** the mechanism is built and measured: D-023. A layer is not driven square before an axis change, as written above: the detent leaves a free layer within the tolerance, and only that residual is set to zero.
 - **Status:** accepted; step 1 (cube logic, `openfactory_manipulation/core/rubik/`: facelet state and moves ported from the `doppelbot` project, the 26 cubies with their rotations, what a turn and a flip do to state and orientation; 226 pytest cases) done 2026-11-14.
+- **Update 2026-11-14:** steps 1 to 8 done (D-023 to D-028) and the closing test passed: E-007, 10 of 10 and 5 of 5 cubes, 0 executed states in collision, 0 cubes called solved that are not, and the run in which the arm scrambles first.
 
 ## D-023 — Rubik's cube mechanism: welds per active axis, detent, change of axis on torque demand
 
@@ -284,6 +285,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
   - Along the axis of the fingers the middle slab is held by the cube's own friction and detent only, as in a real cube held by two opposite faces.
   - Each change of axis leaks about 1.3–1.7 MB in the Gazebo server, an upstream leak of detachable joints (`docs/environment.md`): 540 MB over the 326 changes of the bench run. Long runs relaunch the simulation.
 - **Status:** accepted for phase 7.
+- **Update 2026-11-14, results with the latch:** every part of E-007 was run again and passes: bench 420 of 420 turns over 326 changes of axis, 60 of 60 turns and 60 of 60 flips by the arm, and 16 cubes solved of 16 (parts E and F: 359 turns, every one right at the first try). No cube was lost.
 
 ## D-024 — Rubik's cube cell: a nest on a pedestal, ribbed fingertips, turns and flips
 
@@ -339,6 +341,7 @@ One entry per decision: context, decision, evidence, status. Newest last. Revisi
   - End reasons: `solved`, `scan_failed`, `cube_lost`, `not_square`, `no_view`, `failure_budget`, `operation_budget`, `solver_failed`.
 - **Evaluation** (`scripts/rubik_benchmark.py`, `scripts/rubik_eval.py`): one cube per launch of the cell (the Gazebo server leaks memory at every change of axis, `docs/environment.md`); ground truth after every operation; a cube succeeds only if the cell says `solved`, the simulator's cube is solved, square and seated, and no executed state is in collision. Contacts of the fingers with the cube are the task and are not collisions; anything else is.
 - **Status:** accepted for phase 7; closing test not run yet (the solver is not installed).
+- **Update 2026-11-14:** the solver is installed (D-028) and the closing test passed (E-007, parts E and F: 16 cubes solved of 16, no operation misjudged by the cell). Nothing failed in it, so the two recoveries of this loop that need a fault, `realign` and the scan again after a mismatch, have never run on a cube and have no test: `docs/experiments.md`, E-007, conclusion; `docs/ideas.md`, idea 2.
 
 ## D-028 — Solver dependency: `kociemba` from pip, in a venv of its own
 

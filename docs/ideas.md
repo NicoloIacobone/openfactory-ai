@@ -29,6 +29,14 @@ N arms (N ≥ 2), each with its own conveyor. Arm *i* picks the objects that arr
 
 **Update 2026-11-14:** a first, simpler form of this idea is phase 7 (plan: D-022 in `docs/decisions.md`): one arm, a fixed nest that holds the bottom layer and one overhead camera solve a cube that starts scrambled. The cube is a mechanism of 26 cubies driven by a Gazebo system plugin, the solver is `kociemba`. What is left of this idea after phase 7: the second arm that scrambles and the handover between the two, and turning a layer with two grippers instead of a nest.
 
+Ideas that came up while building it (D-023 to D-027, E-007), none tried:
+
+- The cube starting anywhere on the table or in a bin: the cell of phase 5 picks it (a 57 mm cube is a catalog shape away) and seats it in the nest.
+- A faster scan: a second camera looking at the cube from the side would show three faces at once; today six views cost five flips, about 80 s.
+- Fewer flips: a second nest that holds two layers would let the arm turn the top face as well, so two opposite faces per orientation; or choosing among equivalent solutions the one with the fewest changes of face.
+- A cube that is less ideal inside: pieces that can pop out or twist, as contacts instead of welds (the alternative D-022 set aside).
+- Reporting upstream the memory the Gazebo server loses every time a detachable joint is created and removed (`docs/environment.md`), with the probe that shows it.
+
 The idea as first written:
 
 The same relay idea with one object: an arm scrambles a Rubik's cube with seeded random turns and hands it over; the other arm reads the cube's state from the camera, solves it and hands it back; repeat.

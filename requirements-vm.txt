@@ -1,0 +1,11 @@
+# [VM] Python libraries that apt does not provide, for the Rubik's cube cell (phase 7, D-022):
+# the two-phase solver. They go in a venv of their own, not in the system Python:
+#   python3 -m venv ~/openfactory_ws/.venv_solver
+#   ~/openfactory_ws/.venv_solver/bin/pip install -r /mnt/openfactory-ai/requirements-vm.txt
+# and the path of its site-packages is given to the processes that solve (PYTHONPATH; see
+# docs/environment.md and scripts/vm/run_rubik.sh). kociemba is GPLv2: imported at run time
+# only, in openfactory_manipulation/core/rubik/solver.py.
+cffi==2.1.1
+future==1.0.0
+kociemba==1.2.1
+pycparser==3.11

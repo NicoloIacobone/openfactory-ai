@@ -31,6 +31,7 @@ Known limits:
 - The phase 5 scenes have one dominant failure mode, which the model found from data but a hand rule could also encode once known.
 - One camera, above the input bin: the output bin and the held object are not observed (single-arm cell; in the ring every bin has a camera).
 - Ring: one arm moves at a time, so the handover rate does not grow with N. Objects drop out of the loop: a prism set down by a wall the wrong way round, or two objects touching after a slip, are not picked again; in three of four runs of 100 handovers 2 to 4 objects had stopped going round by the end (E-006).
+- Rubik's cube cell: the cube must start in the nest; a cube that ends out of its seat is lost. Inside, the cube is idealised: its pieces cannot come apart, and a layer is squared exactly before another axis engages (D-023). Gazebo leaks memory at every change of axis of the cube, so long runs relaunch the cell for every cube.
 - Ring on the development VM (4 cores): every bin slows the simulation down, to half speed or less with three arms; the CPU sets the practical N, not the geometry or the memory.
 
 ## Roadmap
@@ -62,7 +63,7 @@ Each phase is gated by a stable, measured previous phase.
 
 | Path | Contents |
 |---|---|
-| `src/` | ROS 2 packages `openfactory_*` (description, simulation, moveit_config, perception, manipulation, bringup) |
+| `src/` | ROS 2 packages `openfactory_*` (description, simulation, moveit_config, perception, manipulation, bringup); `openfactory_simulation` also builds the Gazebo system plugin of the Rubik's cube |
 | `scripts/` | Scene randomization, benchmark runners, ground-truth evaluation, training of the learned ranking; `scripts/vm/` launches, stops and benchmarks detached in the VM |
 | `tests/` | Pure-logic tests of the scripts |
 | `docs/architecture.md` | Components, interfaces, frames |
@@ -108,4 +109,12 @@ python3 <repo>/scripts/relay_benchmark.py --arms 3 --set dev    # spawns seeded 
 ros2 run openfactory_manipulation relay --arms 3                # the loop alone, for ever, on objects already in the bins
 ```
 
-The commands that reproduce each phase's results are in `docs/experiments.md` (E-001 to E-006). The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.
+```bash
+# Rubik's cube cell (phase 7): a scrambled cube in the nest, then the cell reads it and solves it
+ros2 launch openfactory_bringup rubik.launch.py rviz:=false
+python3 <repo>/scripts/rubik_scene.py spawn --seed 3            # 25 seeded random moves; `truth` prints the simulator's state
+ros2 run openfactory_manipulation rubik                          # scan, solve, scan again (needs the pip package kociemba)
+python3 <repo>/scripts/rubik_benchmark.py --part solve --set dev --index 0 --run-id demo   # one cube, judged from ground truth
+```
+
+The commands that reproduce each phase's results are in `docs/experiments.md` (E-001 to E-007). The cell launch also starts the RGB-D camera, its depth error model and `scene_perception`. The camera renders on a display even with `headless:=true`; `camera:=false perception:=false` runs the physics-only cell without one, and `depth_noise:=false` gives ideal depth.

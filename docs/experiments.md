@@ -372,3 +372,43 @@ The thresholds were never changed. The code was changed once after an evaluation
 
 - Conclusion: the relay-loop test passes for N = 2 and N = 3 on the evaluation seed and for N = 3 on a confirmation seed, and a ring of 4 arms runs on the VM. What the test does not show, and the runs do: the loop slowly loses objects to poses its arms cannot grasp, so "for ever" is not demonstrated beyond 100 handovers. Phase 6 was closed on this result by the user (2026-11-13); what is left is in `docs/ideas.md`, idea 1.
 - Limits, besides those of D-020 and D-021: one arm moves at a time, so the handover rate does not grow with N (28 s of simulated time per turn for any N); the simulation slows down with every bin on this VM (CPU, not memory); slips are rare (2 in 300 turns) but in a loop each one can take two objects out; N = 4 was run for two laps only; the three sets share one object generator and three object types.
+
+## E-007 — Phase 7: a Rubik's cube solved by one arm, a nest and one camera (2026-11-14)
+
+- Question: can the cell, starting from a scrambled cube whose state it does not know, read it with its camera, solve it with physical turns of its layers and know that it has (D-022 to D-027)? Asked in parts, from the cube alone to the whole loop: A the cube mechanism on a test bench; B turns by the arm; C flips by the arm; D the scan of the six faces; E the closing test, scrambled cubes solved; F a cube the arm scrambles itself, then solves.
+- Strategy: `rubik_scan_solve_verify`: scan (five flips, six views), `kociemba` solution, flips and turns planned for the fewest seconds of flips, a view after every operation, scan again on a mismatch and at the end (D-026, D-027).
+- Scene: one cube, 57 mm, 92 g, 26 cubies on the mechanism of D-023, scrambled with 25 seeded random moves and spawned in the nest in a seeded orientation among the 24 (part F: spawned solved). The harness never touches it afterwards.
+- Success: per part below. Everywhere: ground truth is read from the simulator's link poses after every operation, for evaluation only; a cubie is on the grid within 0.3 mm and 0.6°, the cube in its seat within 2 mm and 2°; executed joint states (every 0.1 s) are re-checked by MoveIt against the fixtures and the seated cube, and only the fingers on the cube are not a collision.
+- Thresholds, from the plan approved before any code (`scripts/config/phase7_rubik.yaml`): A every check passes; B and C at least 57 of 60; D 20 of 20 states read, none wrong accepted; E at least 9 of 10 cubes on the evaluation seed and 4 of 5 on the confirmation seed, 0 executed states in collision, 0 cubes called solved that are not; F one run.
+- Seeds: development 7100 / evaluation 71 / confirmation 72 (bench: 7000). Camera depth model on.
+- Commit / config: see each part. Cell: `ros2 launch openfactory_bringup rubik.launch.py rviz:=false` on the VM display, relaunched for every cube of parts D to F (the Gazebo server leaks memory at every change of axis of the cube, `docs/environment.md`). Logs in `data/trials/`.
+
+### Development runs (not results: they shaped the cell)
+
+All on seed 7100, 2026-11-14, with the code of commit `bac8f6d` or just before it.
+
+| Run | What | Outcome |
+|---|---|---|
+| `phase7_rubik_mixed_dev_20261114T022832Z_s7100` | 40 flips and turns in a seeded mixed sequence, no camera in the loop | 40 of 40 as the logical model predicts (state, orientation, seated, square); 0 of 6519 states in collision; cube at most 1.0 mm off its seat; 16.5 s per operation |
+| `p7_scan_dev` | scan of cube 0 | state and orientation read correctly; 5 flips, 81 s of simulated time; server memory unchanged |
+| `p7_solve_devinv` | cube 0, solved by undoing its scramble move by move (`--dev-solver inverse`, a development aid) | solved in the simulator and reported `solved`: 25 turns, 38 flips, 0 failures of the cell, 0 of 9830 states in collision, the cell's belief equal to ground truth after each of the 63 operations; 954 s simulated |
+| `p7_solve_devkoc` | cube 1, with the real solver (`kociemba` 1.2.1 read from the `doppelbot` venv already in the VM, nothing installed) | solved in the simulator and reported `solved`: a 21-move solution, 21 turns and 32 flips, 0 failures, 0 of 8709 states in collision, belief equal to ground truth after each of the 53 operations, cube at most 0.75 mm off its seat; 822 s simulated; server memory 416 → 583 MB |
+
+What the earlier development runs found is in D-024 (the grasp) and D-023 (the change of axis under load): flat pads let the cube swing in a flip, pads on the neighbouring slabs or above the centre of a face twist layers, a cube set down 3 mm off rides the nest wall, the mechanism missed a change of axis when the layers that were free were pushed while the welds changed.
+
+### Part A — the cube mechanism on the test bench (`phase7_mechanism_20261114T032645Z_s7000`): pass
+
+Commit `bac8f6d`, `rubik.yaml` sha256 `d61b159e7153` at the first run and the same mechanism parameters since. No robot: a cube whose core is fixed to the world in the `rubik_bench` world, a scrambled state from seed 7000; faces turned by torques applied to their centre cubies through Gazebo's `ApplyLinkWrench` system (0.065 N m until 6° from the target, then the detent finishes). This drive exists on the bench only. Re-run: `ros2 launch openfactory_simulation rubik_bench.launch.py`, then `python3 scripts/rubik_mechanism_test.py --turns 400`.
+
+| Check | Result |
+|---|---|
+| Every face by a quarter turn, a half turn and a quarter turn back: the simulator's state is the logical model's after each | 18 of 18 |
+| 80 % of the breakaway torque (0.032 N m) for 1 s on U, R and F, one on the free axis and two on the others: nothing turns | 3 of 3, less than 0.01 rad |
+| U left 30° out of square; 0.2 N m (five times the breakaway) on R and on F for 1 s each: neither turns, U does not move, the plugin reports the axes blocked; U back to square; then R turns | 4 of 4 |
+| 400 seeded random turns, then one more on another axis: state after every turn | 401 of 401, 326 changes of axis in the whole run |
+| Cubies welded to the core after all of it: distance from where they were spawned on the grid | 5.3e-14 m (threshold 1 µm) |
+| Largest distance of a cubie from its slot while a layer rests on its detent | 0.029 mm, 0.046° |
+
+A turn takes 0.34 s of simulated time on the bench. The same run at commit `4c35c84`, before the change of axis was made robust to load (`phase7_mechanism_20261114T010056Z_s7000`): the same numbers, drift 7.7e-14 m. The Gazebo server grew from 118 to 658 MB over the 326 changes of axis (1.65 MB each; known issue, `docs/environment.md`).
+
+The spawn artefact of the bench: the plugin of a spawned model starts one step after its links, so every cubie falls g dt² = 9.8 µm before it is welded; with the core fixed to the world the whole grid sits that much lower, and each cubie carries that offset round with its layers. It is measured after the spawn and taken out of the drift; a free cube falls as one and has none.

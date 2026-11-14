@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!-- Test bench of the Rubik's cube mechanism (phase 7, E-007 part A): physics only, no robot,
+     no sensors, no display. The harness (scripts/rubik_mechanism_test.py) spawns a cube whose
+     core is fixed to the world and turns its faces with torques on their centre cubies, through
+     the ApplyLinkWrench system. Slower than real time so that the harness can follow a turn. -->
+<sdf version="1.9">
+  <world name="rubik_bench">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>0.25</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-apply-link-wrench-system" name="gz::sim::systems::ApplyLinkWrench"/>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>10 10</size></plane>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+  </world>
+</sdf>

@@ -2,7 +2,7 @@
 
 The current state of the Mac and the VM first, then the dated log of audits, installations and checks it comes from. Re-audit and update this file whenever the VM or tool versions change; the log is appended to, not rewritten.
 
-## Current state (checked 2026-11-13)
+## Current state (checked 2026-11-14)
 
 | Item | Value |
 |---|---|
@@ -12,7 +12,7 @@ The current state of the Mac and the VM first, then the dated log of audits, ins
 | GPU | virtio (`virgl`), OpenGL 2.1 only: Gazebo renders with Ogre 1, on the VM display (D-005) |
 | Python | 3.12.3 (system), NumPy 1.26.4, OpenCV 4.6.0 |
 | ROS 2 | Jazzy, `rmw_fastrtps_cpp` (default) |
-| apt packages installed for this project | phase 0: `ros-jazzy-ros-gz` 1.0.24 (Gazebo Sim 8.15), `ros-jazzy-moveit` 2.12.4, `mesa-utils`; phase 1: `ros-jazzy-ur-simulation-gz` 2.5.0, `ros-jazzy-ur-moveit-config` 3.9.0, `ros-jazzy-ur-robot-driver` 3.9.0 (needed by the vendor UR launch only). Nothing since. |
+| apt packages installed for this project | phase 0: `ros-jazzy-ros-gz` 1.0.24 (Gazebo Sim 8.15), `ros-jazzy-moveit` 2.12.4, `mesa-utils`; phase 1: `ros-jazzy-ur-simulation-gz` 2.5.0, `ros-jazzy-ur-moveit-config` 3.9.0, `ros-jazzy-ur-robot-driver` 3.9.0 (needed by the vendor UR launch only). Nothing since: the Gazebo system plugin of phase 7 builds against the headers of the `gz_*_vendor` packages that `ros-jazzy-ros-gz` brought in. |
 | pip packages | none |
 
 Memory with the full cell (Gazebo server with the camera, MoveIt, depth model, perception, benchmark harness, GNOME session; no RViz): 1.5 GiB used, 2.4 GiB available, real-time factor ≈ 1.0, load average 3–4 on 4 cores (phase 5). RViz adds about 260 MB, the Gazebo GUI about 400 MB. Idle VM: 1.0 GiB used.
@@ -66,6 +66,9 @@ The assistant drives the VM from the Mac with full control (`CLAUDE.md`, "Enviro
 - `move_group` keeps the planning-scene objects of a process that ended. The bin-picking loop empties the world at every scene (D-017); other scripts must do the same.
 - Reading Gazebo's `/world/cell/dynamic_pose/info` (about 1 kHz) continuously from Python starves the process; sample it a few times per second (`GzScene.model_poses` from a thread).
 - The VM clock differs from the Mac's: compare elapsed times (`ps -o etimes`), not wall times.
+- A running `gz sim` keeps the system plugins it loaded: after rebuilding `openfactory_simulation` (the Rubik's cube mechanism, phase 7) stop and relaunch the simulation, or the old library keeps running.
+- Gazebo Transport from Python: do not hold a subscription while calling a service (`node.request`). The request keeps the interpreter while it waits, the subscription callbacks then block the transport thread and the reply is never read: the call times out although the world served it (a model spawned by a call that "failed"). `GzScene.model_poses` subscribes and unsubscribes around one message for this reason; `scripts/rubik_mechanism_test.py` turns its subscriptions off around spawn and remove.
+- Persistent wrenches of Gazebo's `ApplyLinkWrench` system (`/world/<world>/wrench/persistent`) add up: publish one, clear it (`wrench/clear`) before the next on the same link.
 - `doppelbot` shares the VM: build and test it only with its venv active (`source ~/ros2_ws/.venv/bin/activate && python -m colcon ...`); the system `colcon` rewrites its shebangs and breaks its `kociemba` solver.
 
 ## Log
@@ -252,3 +255,24 @@ No package installed. The ring of N arms (D-020) uses what the cell uses: `gz_ro
 - Consequence for timeouts: at half speed a wait of 10 s of wall time is 5 s for the simulated system. The wait for a camera view now runs on the node clock (D-021).
 - Second evaluation chain, final code (`~/p6f_*.env`, same sampling; E-006): N = 2, 1.75 GiB used, 2.16 GiB available, real-time factor 0.96 (0.98 at rest), load average 7.6; N = 3, 1.96 GiB used, 1.94 GiB available, real-time factor 0.52 in one run and 0.20 in the other (0.86 and 0.62 at rest), load average 7.4–8.3; N = 4, 2.13 GiB used, 1.77 GiB available, real-time factor 0.42 (0.65 at rest), load average 9.7. No swap used. The speed is not a constant of N: with the same code and seed the ring of two arms made 113 handovers per hour of wall time in the first chain and 133 in the second, and the two runs with three arms 80 and 108, while the simulated time of 100 handovers was the same within 2 % (2761–2808 s) in all four. A single sample of the real-time factor is a poor measure: the run that showed 0.20 was the faster of the two.
 - **Known issue, open: the Gazebo window with the ring.** `ring.launch.py n:=3 rviz:=false headless:=false` with the relay benchmark running: after three handovers, about six minutes from the launch, `gz sim gui` ended with a segmentation fault in its render thread (`MinimalScene` → `Ogre::SceneManager::renderSingleObject`, Ogre 1.9, "Address not mapped to object"). When the window dies `gz sim` stops the server as well and the launch shuts down, reporting that Gazebo "finished cleanly". 1.5 GiB of memory were available at that moment, 19 MB of swap used; the real-time factor with the window was 0.23. Seen once; a second identical run was stopped by the user after two handovers and three minutes, with no crash until then, so how often it happens is not known. With N = 2 and the window, two handovers ran before the window was closed. Without the window (`headless:=true`, the default) none of the evaluation runs of E-006 crashed. Not investigated further.
+
+### Phase 7 probes and cube mechanism — 2026-11-14
+
+No package installed. A Gazebo system plugin builds against what is there: `gz-sim8` and `gz-plugin2` headers and CMake configuration in `/opt/ros/jazzy/opt/gz_sim_vendor` and `gz_plugin_vendor` (`find_package(gz_sim_vendor)`, `find_package(gz-sim)`), gz-physics 7.8.0 with DART 6.13.2 (`gz_dartsim_vendor`), `g++` 13.2, `cmake` 3.28. Compiling the plugin takes a few seconds and about 550 MB.
+
+Probes, with throwaway plugins and worlds in `~/rubik_probe` (physics only, no display), before the cube mechanism of D-023 was written:
+
+| Question | Result |
+|---|---|
+| Can a plugin weld a free link of its own model to another link at run time? | Yes: an entity with `components::DetachableJoint` becomes a fixed joint of the model tree (a DART `WeldJoint`). Created in the first `PreUpdate`, the link never falls. |
+| Can the weld be moved to another parent without a step in which the link is free? | Yes: `Physics::Update` creates new detachable joints before the step and removes old ones after it. Removal requested in one update and creation in the next: the link pose is identical to 17 digits across the change. |
+| Can the plugin read the force and torque a weld carries? | Yes, with `components::Joint` and `components::JointTransmittedWrench` added to the weld entity: Physics fills the wrench as for a model joint. A torque-free 1 N force on the welded link reads as −1 N plus the link's weight, in the child link's frame. |
+| Can a joint be set to an exact angle? | Yes: `components::JointPositionReset` to π/2 leaves the welded link at (1.2e-18, 0.019) m. |
+| Are link poses of a model readable outside ROS? | Yes: `/world/<world>/dynamic_pose/info` carries every link by name, relative to its model. |
+| Does the velocity command of a joint (`JointVelocityCmd`) work as a hold or a drive? | On a bare axle, yes, also after a spell of force commands. On an axle that carries welded links it does not move the joint (cause not found): the mechanism uses force commands only. |
+
+Joint friction in DART is not what the SDF says once damping is there. With `<friction>` f and `<damping>` d on a revolute joint of inertia I, a joint at rest holds a torque of about f, but a turning one resists more: 4 f on the probe's axle (I = 1.7e-6 kg m², d = 0.005) and 1.44 f on a cube layer (I = 1.5e-5, d = 0.003), measured from the steady speed under a constant torque. The cube's parameters are therefore set from bench measurements, not from the SDF value.
+
+Traps met (all in "Operating the VM over SSH"): a running `gz sim` keeps the plugin it loaded; no Gazebo Transport subscription during a service request from Python; persistent wrenches add up. A model spawned through `create` gets its plugin one step after its links: the cubies of a spawned cube fall g dt² = 9.8 µm before they are welded. A free cube falls as one; on the test bench, where the core is fixed to the world, the grid of cubies sits 9.8 µm below the core.
+
+**Known issue, open: Gazebo leaks memory when a detachable joint is created and removed.** About 36 kB of the server per create-and-remove (53 kB with the wrench components), measured with a probe that welds and frees one link 10 000 times: 120 MB → 484 MB (651 MB); the same churn of plain entities, without `DetachableJoint`, leaks nothing, and neither the scene broadcaster nor the user-commands system matters. So it is in the physics side of gz-sim 8 / gz-physics 7.8 / DART, not in the project's plugin. The cube changes 26 welds at every change of axis: 1.2–1.4 MB each time (bench: +36 and +41 MB over 30 changes, +0 over 60 turns on one axis; 740 MB after about 400 changes). A solve needs a few tens of changes, so a long benchmark relaunches the simulation between sets of cubes and records the server's memory.

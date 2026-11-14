@@ -53,3 +53,9 @@ pre-grasp → approach → close gripper → verify jaw opening → lift → (at
 - Place points and obstacles of the destination bin come from its view (`core/relay.free_slots`, `RelayLoop._destination`), not from memory. A handover needs the pick verified and the object seen at its place point (`object_not_arrived`).
 - The object that waited longest in the source bin goes first (`core/relay.waiting_since`, passed to `grasp_selector.select` as `priority`): an order between objects set by the task, before the ranking. It must stay an order, never a filter.
 - Loop end reasons: `handovers_done`, `no_work`, `failure_budget`, `park_failed`, `no_view` (`core/relay.py`).
+
+## Rubik's cube cell (phase 7, D-022)
+
+- Cube logic lives in `core/rubik/` (ROS-free): `cube.py` (54 facelets, moves, `check_solvable`), `cubies.py` (26 cubies with rotations), `orientation.py` (the cube's orientation in the nest; `turn_move`, `after_turn`, `after_flip`), `solver.py` (`kociemba`, imported inside `solve` only).
+- The nest holds the bottom layer and the gripper the two layers above it, the core among them: a gripper turn of k quarter turns about the vertical makes the face that is down turn k quarter turns anticlockwise seen from outside, and turns the cube frame with the gripper (`orientation.physical_turn` is the geometry behind it, checked by pytest for the 24 orientations).
+- The turn, the flip, the perception of the cube and the solve loop are not written yet.

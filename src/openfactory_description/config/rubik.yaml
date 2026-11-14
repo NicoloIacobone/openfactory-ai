@@ -1,0 +1,40 @@
+# Rubik's cube model and its mechanism (phase 7, D-022, D-023). SI units, radians.
+# Single source for the generated simulator model (scripts/rubik_model.py) and for the geometry
+# the cell uses. Cube frame: x towards R, y towards U, z towards F, origin at the cube centre.
+
+cube:
+  pitch: 0.019                # m, side of a cubie; the cube is 3 x pitch = 57 mm
+  cubie_mass: 0.003           # kg each, 26 of them
+  core_mass: 0.008            # kg
+  axle_mass: 0.001            # kg each, 6 of them; the whole cube is 92 g
+  friction: 1.0               # Gazebo mu/mu2 of the cubie surfaces
+  sticker:
+    size: 0.016               # m, side of the coloured square on a cubie face
+    thickness: 0.0004         # m, how far it stands out of the black body
+  body_color: [0.02, 0.02, 0.02, 1.0]
+  colors:                     # sticker colour of the face each letter names
+    U: [1.0, 1.0, 1.0, 1.0]   # white
+    R: [0.8, 0.0, 0.0, 1.0]   # red
+    F: [0.0, 0.6, 0.15, 1.0]  # green
+    D: [1.0, 0.85, 0.0, 1.0]  # yellow
+    L: [1.0, 0.4, 0.0, 1.0]   # orange
+    B: [0.0, 0.2, 0.8, 1.0]   # blue
+
+# Read by the cube's system plugin (openfactory_simulation, RubikCubeSystem) and written into
+# the joints of the generated model.
+mechanism:
+  initial_axis: 1             # axis whose layers are free at spawn: 0 = x (R/L), 1 = y (U/D), 2 = z (F/B)
+  layer_friction: 0.01        # N m, Coulomb friction of the axle joints. Measured on the bench
+                              # (docs/environment.md, "Phase 7 probes"): a layer at rest
+                              # holds this torque; a turning one resists about 1.4 times it
+  layer_damping: 0.003        # N m s/rad
+  detent_torque: 0.03         # N m, peak pull of a layer towards the nearest quarter turn
+  detent_stiffness: 15.0      # N m/rad, slope of that pull near the quarter turn. A layer
+                              # that nothing holds rests within layer_friction / this of
+                              # square: 0.67 mrad (0.04 deg)
+  detent_window: 0.14         # rad (8 deg), the pull acts within this angle of a quarter turn
+  breakaway_torque: 0.04      # N m on a layer of another axis that makes that axis engage:
+                              # layer_friction + detent_torque, what a free layer needs to start
+  snap_tolerance: 1.75e-3     # rad (0.1 deg): another axis engages only if both free layers are
+                              # this close to a quarter turn, where the detent leaves a layer
+                              # that nothing holds; their residual is then set to exactly zero

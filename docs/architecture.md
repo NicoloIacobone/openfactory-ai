@@ -1,6 +1,6 @@
 # Architecture
 
-Components, interfaces and frames of the single-arm cell as implemented through phase 5, and of the ring of N arms built from it in phase 6 ("Ring of N arms" below). A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
+Components, interfaces and frames of the single-arm cell as implemented through phase 5, and of the ring of N arms built from it in phase 6 ("Ring of N arms" below). The Rubik's cube cell of phase 7 is being built ("Rubik's cube cell" at the end): so far its cube model and the cube's logic. A component marked *later* is a proposal. Changing an implemented interface needs explicit approval. History is in `docs/decisions.md` and `docs/experiments.md`.
 
 ## System loop
 
@@ -182,3 +182,45 @@ Those of the cell with a prefix or a namespace; types and semantics are unchange
 | `bin_<k>_camera_link`, `bin_<k>_camera_optical_frame` | `bin_<k>` | as `camera_link` and `camera_optical_frame` of the cell, above bin *k* |
 
 Ground truth is read as in the cell, by the harness only (`scripts/relay_benchmark.py`, judged in `scripts/relay_eval.py`): an object is where its pose falls inside the inner volume of a bin, on any face.
+
+## Rubik's cube cell
+
+Phase 7 (D-022, in progress). One arm, a nest that holds the bottom layer of the cube and one overhead camera are to solve a scrambled Rubik's cube whose layers turn only under the forces applied to it. A third system next to the cell and the ring, built from the same packages. Implemented so far: the cube model with its mechanism, the cube's logic and the mechanism test bench; the cell with the nest, the perception of the cube and the solve loop are not.
+
+### The cube model
+
+A 57 mm cube of 92 g, generated as SDF by `scripts/rubik_model.py` from `openfactory_description/config/rubik.yaml` and from a cube state, so that a cube can be spawned already scrambled. Model frame = cube frame: x towards the R face, y towards U, z towards F, origin at the centre.
+
+| Link | What |
+|---|---|
+| `core` | the root, at the cube centre |
+| `axle_<U\|R\|F\|D\|L\|B>` | six links on revolute joints `axle_<face>_joint` of the core, about the outward face normals, with the layer friction and damping of `rubik.yaml` |
+| `cubie_<xyz>` | 26 free links named after their home slot, each letter `n`, `z` or `p` for −1, 0, +1 along x, y, z (`cubie_ppp` is the U-R-F corner): a 19 mm collision box with the friction of `rubik.yaml`, a black body and one coloured sticker per outer face |
+
+The cubies do not collide with each other (one model, no `self_collide`); they collide with everything else.
+
+### The mechanism (D-023)
+
+`RubikCubeSystem` (`openfactory_simulation/src/rubik_cube_system.cc`), a Gazebo system plugin of the model, joins the links at run time:
+
+- One axis of the cube is active. The nine cubies of each of its two outer layers are welded to that layer's axle, the eight between them to the core. A weld is a `DetachableJoint` entity: in the physics engine a fixed joint of the model tree.
+- The two active axles turn under whatever torque reaches them through the cubies, against the joint friction and a detent the plugin applies as a joint torque: a spring towards the nearest quarter turn, capped, within a window. The other four axles carry nothing.
+- From the wrench each weld transmits the plugin computes the torque the outside applies to every layer of the two other axes. When one exceeds `breakaway_torque` and both active layers are within `snap_tolerance` of a quarter turn, their angles are set to exactly the quarter turn (`JointPositionReset`), the welds are removed after that step and created for the new axis before the next one. If a layer moved in between, the old welds are put back. While an active layer is out of square the other axes stay rigid.
+- Nothing moves a cubie except forces on the links. Idealised: no interlocking pieces inside (a cubie cannot be pulled out, a corner cannot be twisted), and the exact squaring (at most 0.1°) before an axis change.
+
+The plugin publishes its state on the Gazebo topic `/model/rubik_cube/mechanism` (`gz.msgs.StringMsg`, JSON: active axis, axle angles, torque demand per axis, axis changes, `blocked`), 50 times per simulated second. It is simulator data: not bridged to ROS, read by the harness only.
+
+### Cube logic
+
+ROS-free, in `openfactory_manipulation/core/rubik/`, with pytest:
+
+| Module | What |
+|---|---|
+| `cube.py` | the cube as 54 facelets in Kociemba's order (`URFDLB`), moves, validity and solvability of a state, seeded scrambles (ported from the `doppelbot` project) |
+| `cubies.py`, `rotations.py` | the same cube as 26 cubies, each in a slot with one of the 24 rotations; conversion both ways |
+| `orientation.py` | how the cube sits in the nest (one of 24 orientations) and what the cell's turn and flip do to state and orientation |
+| `solver.py` | `solve(state)` through the `kociemba` library, imported only there |
+
+### Ground truth
+
+As in the cell, only the harness reads the simulator: `scripts/rubik_truth.py` turns the poses of the cube's links (`/world/<world>/dynamic_pose/info`) into the 54-facelet state, with the largest distance and angle of a cubie from the grid. `scripts/rubik_mechanism_test.py` drives the test bench (`ros2 launch openfactory_simulation rubik_bench.launch.py`, world `rubik_bench`: physics only, a cube whose core is fixed to the world, faces turned by torques on their centre cubies through Gazebo's `ApplyLinkWrench` system). That drive exists on the bench only.

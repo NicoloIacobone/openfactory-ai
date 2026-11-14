@@ -51,19 +51,20 @@ class GzScene:
         self.world = world
         self.node = Node()
 
-    def _call(self, service, request, request_type):
+    def _call(self, service, request, request_type, timeout_ms=TIMEOUT_MS):
         ok, reply = self.node.request(
-            f'/world/{self.world}/{service}', request, request_type, Boolean, TIMEOUT_MS)
+            f'/world/{self.world}/{service}', request, request_type, Boolean, timeout_ms)
         if not ok or not reply.data:
             raise RuntimeError(f'/world/{self.world}/{service} failed (is the cell launched?)')
 
-    def spawn(self, name, sdf, xyz, rpy=(0.0, 0.0, 0.0)):
+    def spawn(self, name, sdf, xyz, rpy=(0.0, 0.0, 0.0), timeout_ms=TIMEOUT_MS):
+        """`timeout_ms`: a model of many links in a slow world takes longer than the default."""
         request = EntityFactory(sdf=sdf, name=name, allow_renaming=False)
         request.pose.position.x, request.pose.position.y, request.pose.position.z = xyz
         q = so.quaternion_from_rpy(*rpy)
         o = request.pose.orientation
         o.x, o.y, o.z, o.w = q
-        self._call('create/blocking', request, EntityFactory)
+        self._call('create/blocking', request, EntityFactory, timeout_ms)
 
     def remove(self, name):
         self._call('remove/blocking', Entity(name=name, type=Entity.MODEL), Entity)

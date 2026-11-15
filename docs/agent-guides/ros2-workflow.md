@@ -50,4 +50,4 @@ Standard colcon workflow in the VM; exact commands in `CLAUDE.md`, "Build and te
 
 1. Build only what changed: `colcon build --symlink-install --base-paths /mnt/openfactory-ai/src --packages-up-to <pkg>`.
 2. Unit tests (pytest) for pure logic; `launch_testing` for node/launch integration when the behavior depends on ROS wiring. Check exit codes: a node crashing on shutdown is a failure.
-3. Run the tests in the VM and report the result.
+3. Run the tests in the VM and report the result. ROS-free tests also run in CI at every push (`.github/workflows/tests.yml`, D-030): keep their imports within what the workflow installs, and check the run after pushing.

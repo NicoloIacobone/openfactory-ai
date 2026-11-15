@@ -1,0 +1,36 @@
+# The ROS-free tests (D-030): pure logic of the scripts and of the manipulation and perception
+# packages, with the Python packages of the development VM (Ubuntu 24.04 apt) and no ROS.
+# The tests that need ROS (colcon test) run in the VM: CLAUDE.md, "Build and test".
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pure-logic:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Python packages of the VM, from apt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-numpy python3-yaml python3-opencv python3-pytest
+
+      - name: Scripts (tests/)
+        run: /usr/bin/python3 -m pytest -q -p no:cacheprovider tests
+
+      - name: openfactory_manipulation
+        env:
+          PYTHONPATH: src/openfactory_manipulation
+        run: /usr/bin/python3 -m pytest -q -p no:cacheprovider src/openfactory_manipulation/test
+
+      - name: openfactory_perception
+        env:
+          PYTHONPATH: src/openfactory_perception
+        run: /usr/bin/python3 -m pytest -q -p no:cacheprovider src/openfactory_perception/test

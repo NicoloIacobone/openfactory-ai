@@ -2,6 +2,8 @@
 
 Summaries of trials and benchmarks. Raw logs stay in `data/` (git-ignored); every entry names the run id, git commit, config and seed list so it can be re-run. Method and metrics: `docs/agent-guides/benchmarking.md`.
 
+The logs of every run up to 2026-11-15 (E-001 to E-007, 115 runs, every run id named below among them) are published as `openfactory-ai-trials-v0.7.0.tar.gz` in the GitHub release [`v0.7.0`](https://github.com/NicoloIacobone/openfactory-ai/releases/tag/v0.7.0) (D-030). The archive also holds development, voided and superseded runs: this file says which runs count.
+
 ## Template
 
 ```
@@ -613,3 +615,29 @@ python3 scripts/film_edit.py fetch ring_orbit && python3 scripts/film_edit.py ed
 
 Eight frames spread over each video were looked at: the camera goes all the way round and the cube, the nest, the bins and the arms stay in the frame. Two things the orbit costs. The world has one directional light and no shadows, so from the far side the arm is seen against the light and is dark (about a third of the Rubik's cube video); no fill light was added, because it would change what the cell's own camera sees. And the moving picture compresses less well: the ring's file doubled (118 to 240 MB at the same bitrate setting). The speed of the simulation did not change (0.30 of real time for the cube, 42 handovers per hour for the ring).
 
+
+### README media (2026-11-15, not results)
+
+Edits of the two orbit takes for the README (D-030), each a whole run in about 20 s; the GIFs and two stills are in `docs/media/`, the mp4 of the same edits are assets of the release `v0.7.0`. Runs and outcomes as in the table above.
+
+| File | From | Edit | Size |
+|---|---|---|---|
+| `docs/media/rubik_orbit_x34.gif` | `rubik_orbit` | 34×, 640×360, 12 frames/s, 20.1 s | 5.7 MB |
+| `docs/media/ring_orbit_x27.gif` | `ring_orbit` | 27×, 640×360, 12 frames/s, 19.7 s | 7.0 MB |
+| `rubik_orbit_x34.mp4` (release) | `rubik_orbit` | 34×, 1280×720, 30 frames/s, 20.1 s | 3.8 MB |
+| `ring_orbit_x27.mp4` (release) | `ring_orbit` | 27×, 1280×720, 30 frames/s, 19.7 s | 3.9 MB |
+| `docs/media/rubik_steps.png` | `rubik_orbit` at 128.3 s, 42.8 s and 641.3 s | three 560×440 crops side by side: scrambled cube under the gripper, cube held in a flip, solved cube | 104 KB |
+| `docs/media/ring.png` | `ring_orbit` at 99.6 s | the frame, 1280×720 | 85 KB |
+
+```bash
+# [MAC] with the recordings in data/videos/ (fetched as above)
+python3 scripts/film_edit.py edit rubik_orbit --speed 34 --gif && python3 scripts/film_edit.py edit rubik_orbit --speed 34
+python3 scripts/film_edit.py edit ring_orbit --speed 27 --gif && python3 scripts/film_edit.py edit ring_orbit --speed 27
+cd data/videos
+ffmpeg -ss 128.3 -i rubik_orbit/rubik_orbit.mp4 -ss 42.8 -i rubik_orbit/rubik_orbit.mp4 -ss 641.3 -i rubik_orbit/rubik_orbit.mp4 \
+  -filter_complex "[0:v]trim=end_frame=1,crop=560:440:360:240,pad=568:440:0:0:white[a];[1:v]trim=end_frame=1,crop=560:440:420:260,pad=568:440:0:0:white[b];[2:v]trim=end_frame=1,crop=560:440:480:220[c];[a][b][c]hstack=3" \
+  -frames:v 1 rubik_steps.png
+ffmpeg -ss 99.6 -i ring_orbit/ring_orbit.mp4 -frames:v 1 ring.png
+```
+
+Checked by eye before committing: eight consecutive frames of each GIF (at 34× consecutive frames are about 2.7 s of simulated time apart, so a flip shows as a few jumps, while turns and the ring's handovers read as motion); at 640 px the stickers of the cube are readable, scrambled at the start and solved at the end. Stills from the lit side of the orbit only.

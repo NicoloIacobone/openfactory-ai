@@ -44,7 +44,9 @@ The log format lives in one pure module with tests (`scripts/trial_log.py`); eve
 - `scripts/rubik_benchmark.py --part scan|solve|scramble --set S --index I --run-id NAME`: one cube of a seed through the cell's own loop (E-007 parts D, E, F); `--summarize --run-id NAME` writes the summary. Judged in `scripts/rubik_eval.py` (pure, tested). One cube per launch of the cell: `scripts/vm/run_rubik.sh NAME PART SET FIRST LAST` relaunches it for every cube, writes `~/NAME.log`, `~/NAME.progress` and `~/NAME.done`. `--dev-solver inverse` undoes the scramble instead of calling `kociemba`: a development aid, never a result.
 - `scripts/randomize_scene.py`: see the simulation guide.
 - `scripts/film.py take TAKE`: a video of a real run, with a benchmark harness as its scenario (D-029); see the simulation guide, "Filming".
-- Results summary (tables, plots) in `docs/experiments.md` with the run id, commit, config and the command that re-runs it; raw logs stay in `data/`.
+- Results summary (tables, plots) in `docs/experiments.md` with the run id, commit, config and the command that re-runs it; raw logs stay in `data/` and the VM's `~/openfactory_data/trials/`.
+- A result that changes what the README states (its results table, known limits, status) updates `README.md` in the same commit; check it again before every push (`CLAUDE.md`, "Docs to update with every change").
+- When a phase closes, its runs are published as an archive in a GitHub release (D-030): every run of `~/openfactory_data/trials/` with a `MANIFEST.md` (build date, commit, `docs/experiments.md` as the index of the runs that count), and the link in the README and in `docs/experiments.md`.
 
 ## Learned models
 

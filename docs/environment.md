@@ -13,7 +13,8 @@ The current state of the Mac and the VM first, then the dated log of audits, ins
 | Python | 3.12.3 (system), NumPy 1.26.4, OpenCV 4.6.0 |
 | ROS 2 | Jazzy, `rmw_fastrtps_cpp` (default) |
 | apt packages installed for this project | phase 0: `ros-jazzy-ros-gz` 1.0.24 (Gazebo Sim 8.15), `ros-jazzy-moveit` 2.12.4, `mesa-utils`; phase 1: `ros-jazzy-ur-simulation-gz` 2.5.0, `ros-jazzy-ur-moveit-config` 3.9.0, `ros-jazzy-ur-robot-driver` 3.9.0 (needed by the vendor UR launch only). Nothing since: the Gazebo system plugin of phase 7 builds against the headers of the `gz_*_vendor` packages that `ros-jazzy-ros-gz` brought in. |
-| Mac tools | ffmpeg 9.0.1 (Homebrew, already installed): edits the videos (`scripts/film_edit.py`, D-029). Built without `drawtext` and `subtitles` |
+| Mac tools | ffmpeg 9.0.1 (Homebrew, already installed): edits the videos (`scripts/film_edit.py`, D-029). Built without `drawtext` and `subtitles`. GitHub CLI `gh` (already installed): releases, CI runs, repository settings |
+| CI | GitHub Actions, `ubuntu-24.04` runner (x86_64), system `python3` with apt `python3-numpy`, `python3-yaml`, `python3-opencv`, `python3-pytest` (the versions of the VM, below); no ROS. Runs the ROS-free tests (`.github/workflows/tests.yml`, D-030) |
 | pip packages | none in the system Python. In a venv of this project, `~/openfactory_ws/.venv_solver` (phase 7, D-028): `kociemba` 1.2.1 with `cffi` 2.1.1, `future` 1.0.0, `pycparser` 3.11, from `requirements-vm.txt` |
 
 Memory with the full cell (Gazebo server with the camera, MoveIt, depth model, perception, benchmark harness, GNOME session; no RViz): 1.5 GiB used, 2.4 GiB available, real-time factor ≈ 1.0, load average 3–4 on 4 cores (phase 5). RViz adds about 260 MB, the Gazebo GUI about 400 MB. Idle VM: 1.0 GiB used.
@@ -337,3 +338,12 @@ Probe in the Rubik's cube cell (`rubik.launch.py rviz:=false`, no window), film 
 - Traps met: the check that nothing else is running matched the remote shell of the SSH session that typed the same names (fixed: `film_shots.busy` skips `sh -c` lines, tested); a take whose scenario is a shortened benchmark (`--handovers K`) is recorded as failed because the script exits 1 on anything but a full set, so the takes run full sets.
 - Left in the VM by the probe, not needed again: `~/film_probe.yaml`, `~/openfactory_data/videos/probe`, `probe_v` and `stills`, `/tmp/film_probe_trials`.
 
+
+### Repository made ready to publish — 2026-11-15
+
+Checks for D-030, nothing installed:
+
+- The ROS-free tests run with no ROS environment: `env -i HOME=$HOME PATH=/usr/bin:/bin` (no `/opt/ros` path in `sys.path`), from `/mnt/openfactory-ai`: `python3 -m pytest -q -p no:cacheprovider tests` 213 passed; `PYTHONPATH=src/openfactory_manipulation ... src/openfactory_manipulation/test` 385 passed, 1 skipped (the solver test: `kociemba` is not on that path); `PYTHONPATH=src/openfactory_perception ... src/openfactory_perception/test` 95 passed. `src/openfactory_simulation/test` needs ROS (collection error without it), as do the tests of `openfactory_description` and `openfactory_moveit_config`.
+- The Python packages they use, from apt: `python3-numpy` 1:1.26.4+ds-6ubuntu1, `python3-yaml` 6.0.1-2build2, `python3-opencv` 4.6.0+dfsg-13.1ubuntu1, `python3-pytest` 7.4.4-1. The CI installs the same packages on the `ubuntu-24.04` runner.
+- Licences of the vendor packages the cell includes (`/opt/ros/jazzy/share/*/package.xml`): `ur_description` BSD-3-Clause (the meshes of UR8 Long, UR15, UR18, UR20 and UR30 are under Universal Robots' terms for graphical documentation; the UR5e's are not), `ur_simulation_gz` BSD-3-Clause, `ur_moveit_config` Apache-2.0. `LICENSE` is `/usr/share/common-licenses/Apache-2.0`, byte for byte the text of apache.org.
+- Run logs in the VM: 115 runs in `~/openfactory_data/trials/` (41 MB), every run id that `docs/experiments.md` names among them; the Mac's `data/trials/` holds a subset, identical where both have a run.

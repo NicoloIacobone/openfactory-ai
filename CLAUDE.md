@@ -58,7 +58,7 @@ ssh doppelvm 'source /opt/ros/jazzy/setup.bash && <command>'
 - Install commands follow the official docs (ROS 2 Jazzy, Gazebo, MoveIt 2). If unsure about a command or version, say so.
 - Ask before: installing packages, changing system configuration (Mac, VM, UTM), deleting files, changing an interface in `docs/architecture.md`, `git push`.
 - Small, descriptive commits, one per logical change.
-- Never in the repo: tokens, passwords, SSH keys, large binaries (bags, datasets, weights, meshes downloaded from third parties). Run outputs go in `data/` (git-ignored); the VM cannot write to the share, so it writes to `~/openfactory_data/` and the Mac copies with `scp`.
+- Never in the repo: tokens, passwords, SSH keys, large binaries (bags, datasets, weights, meshes downloaded from third parties, videos). Run outputs go in `data/` (git-ignored); the VM cannot write to the share, so it writes to `~/openfactory_data/` and the Mac copies with `scp`. The one exception is the README's media in `docs/media/` (D-030): GIFs and stills cut from filmed runs, at most 8 MB a file and 20 MB in all, replaced only when what they show has changed. Full-resolution videos and archives of run logs go to GitHub releases.
 
 ## Build and test
 
@@ -75,6 +75,8 @@ colcon test --base-paths /mnt/openfactory-ai/src && colcon test-result --verbose
 # [VM] pure-logic tests of repo-level scripts
 cd /mnt/openfactory-ai && python3 -m pytest -q -p no:cacheprovider tests
 ```
+
+CI (`.github/workflows/tests.yml`, D-030) runs the ROS-free tests on GitHub at every push: `tests/` and the package tests of `openfactory_manipulation` and `openfactory_perception`, with apt's Python packages and no ROS. A new ROS-free test module must pass there too, so it may import only what the workflow installs; a new third-party import goes into the workflow in the same commit. After a push, check the run (`gh run list --limit 1`). Tests that need ROS run only in the VM.
 
 ## Architecture in brief
 
@@ -101,6 +103,11 @@ Three systems share the packages: the single-arm cell (`cell.launch.py`, phases 
 | Trial, benchmark, result | `docs/experiments.md` |
 | VM or tool versions | `docs/environment.md` |
 | Idea for a later phase | `docs/ideas.md` |
+| Anything a visitor reads: status, results, known limits, setup, commands, layout, media | `README.md` |
+| A test that needs a new Python package, or a new ROS-free test directory | `.github/workflows/tests.yml` |
+| A phase closes | `README.md` and the status table above; a release with the archive of its run logs (D-030); the GitHub description and topics if the scope changed |
+
+**Before every push**, check that what is pushed is documented: the docs of every commit in it are current (the rule above), and `README.md` still describes what the pushed branch does: its status, results table, known limits, commands, layout and media. The README is what a visitor of the repository on GitHub reads first; when it falls behind, fix it in a commit before pushing, not after. After the push, check that the CI run passed.
 
 ## Guides: read only the ones the task touches
 

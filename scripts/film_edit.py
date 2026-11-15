@@ -5,8 +5,8 @@ A take is recorded in the VM by scripts/film.py on simulated time; here it is co
 git-ignored data/videos/ and sped up, cut or turned into a GIF. The recording is never changed:
 every edit is a new file with its speed in the name, so an edit can be redone at will.
 
-Run on the Mac, from anywhere (needs ffmpeg and the SSH alias of the VM):
-    python3 scripts/film_edit.py fetch NAME
+Run on the Mac, from anywhere (needs ffmpeg and SSH access to the machine that filmed the take):
+    python3 scripts/film_edit.py fetch NAME [--host HOST]
     python3 scripts/film_edit.py info NAME
     python3 scripts/film_edit.py edit NAME --speed 8 [--trim START END] [--fps 30] [--gif [WIDTH]]
     python3 scripts/film_edit.py frames NAME [--count 5]
@@ -22,8 +22,8 @@ import film_shots as fs
 
 REPO = Path(__file__).resolve().parents[1]
 VIDEOS = REPO / 'data' / 'videos'
-VM = 'doppelvm'
-VM_VIDEOS = 'openfactory_data/videos'
+DEFAULT_HOST = 'doppelvm'           # SSH host of the development VM (docs/environment.md)
+VM_VIDEOS = 'openfactory_data/videos'   # where film.py writes takes, relative to the home directory
 GIF_WIDTH = 640
 GIF_FPS = 12
 
@@ -53,9 +53,12 @@ def probe(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest='command', required=True)
-    for command, text in (('fetch', 'copy a take from the VM into data/videos/'),
-                          ('info', 'the recording next to what take.json says')):
-        sub.add_parser(command, help=text).add_argument('name')
+    fetch = sub.add_parser('fetch', help='copy a take from the machine that filmed it into data/videos/')
+    fetch.add_argument('name')
+    fetch.add_argument('--host', default=DEFAULT_HOST,
+                       help=f'SSH host (alias or user@address) that filmed the take '
+                            f'(default {DEFAULT_HOST})')
+    sub.add_parser('info', help='the recording next to what take.json says').add_argument('name')
     edit = sub.add_parser('edit', help='speed up, cut, convert')
     edit.add_argument('name')
     edit.add_argument('--speed', type=float, default=1.0)
@@ -71,7 +74,7 @@ def main():
 
     if args.command == 'fetch':
         VIDEOS.mkdir(parents=True, exist_ok=True)
-        subprocess.run(['scp', '-r', '-q', f'{VM}:{VM_VIDEOS}/{args.name}', str(VIDEOS)],
+        subprocess.run(['scp', '-r', '-q', f'{args.host}:{VM_VIDEOS}/{args.name}', str(VIDEOS)],
                        check=True)
         print(VIDEOS / args.name)
         return 0

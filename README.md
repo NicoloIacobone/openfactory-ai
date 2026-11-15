@@ -8,7 +8,7 @@
 
 A ROS 2 digital twin of a robotic cell that **perceives, plans, acts and recovers in a closed loop**: a simulated RGB-D camera observes unordered objects, the system chooses a feasible grasp, plans a collision-aware motion, picks and places the object, verifies the outcome and replans after failures. Inspired by industrial 3D-vision bin-picking platforms (e.g. Mujin).
 
-Nothing is animated: every motion is planned with MoveIt 2 and executed by ROS 2 controllers in Gazebo, perception reads camera data and TF and never the simulator's ground truth, and every result is measured on seeded scenes and judged from ground truth afterwards.
+Nothing is animated: robot motion goes through ROS 2 planning and controllers into the simulator, with no scripted joint playback and no teleported objects. Perception and grasp selection consume camera data and TF, never the simulator's ground truth, which serves only to evaluate the runs. Every result comes from seeded, logged runs and can be re-run from its seed and config.
 
 <p align="center">
   <img src="docs/media/rubik_orbit_x34.gif" width="640" alt="A UR5e arm reads a scrambled Rubik's cube with its camera and solves it with physical turns and flips, sped up 34 times">

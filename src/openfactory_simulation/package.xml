@@ -4,7 +4,7 @@
   <name>openfactory_simulation</name>
   <version>0.1.0</version>
   <description>Gazebo Harmonic cell: world, ros_gz bridge, ros2_control controllers, depth sensor model, Rubik's cube mechanism plugin, simulation launch.</description>
-  <maintainer email="etaspam12@gmail.com">Nico</maintainer>
+  <maintainer email="nicolo.iacobone@gmail.com">Nico</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

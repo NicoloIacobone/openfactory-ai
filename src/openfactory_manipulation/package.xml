@@ -4,7 +4,7 @@
   <name>openfactory_manipulation</name>
   <version>0.1.0</version>
   <description>Pick and place at a known or perceived object pose: object selection, MoveIt 2 execution, gripper.</description>
-  <maintainer email="etaspam12@gmail.com">Nico</maintainer>
+  <maintainer email="nicolo.iacobone@gmail.com">Nico</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>

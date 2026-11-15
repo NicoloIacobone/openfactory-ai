@@ -17,7 +17,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='Nico',
-    maintainer_email='etaspam12@gmail.com',
+    maintainer_email='nicolo.iacobone@gmail.com',
     description='Pick and place at a known or perceived object pose, bin picking, relay loop of N arms, Rubik\'s cube cell: grasp selection, MoveIt 2, gripper.',
     license='Apache-2.0',
     tests_require=['pytest'],

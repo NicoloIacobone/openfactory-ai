@@ -1,10 +1,11 @@
 """Pure logic of the filming tool (scripts/film.py, scripts/film_edit.py): no ROS, no Gazebo.
 
-A take films one real run of a system. The film camera is a Gazebo model of its own, static,
-with no body and no collision, created in the running world: it is not part of the cell, it is
-not bridged to ROS and nothing in perception or manipulation reads it. Its sensor carries
+A take films one real run of a system. The film camera is a Gazebo model of its own, with no
+body and no collision, created in the running world: it is not part of the cell, it is not
+bridged to ROS and nothing in perception or manipulation reads it. Its sensor carries
 Gazebo's CameraVideoRecorder system, which encodes the frames on simulated time, so a video
-plays at the speed of the simulated system however slowly the simulator ran.
+plays at the speed of the simulated system however slowly the simulator ran. A shot is fixed
+or an orbit: the camera going round the point it looks at while the run lasts.
 """
 
 import math
@@ -16,6 +17,7 @@ TOPIC_PREFIX = 'film'
 VIDEO_FORMAT = 'mp4'
 VIDEO_FIELDS = ('width', 'height', 'fps', 'bitrate', 'hfov_deg', 'clip')
 TAKE_FIELDS = ('launch', 'warmup_s', 'shot', 'scenario')
+ORBIT_JOINT = 'orbit'
 
 # what a take would stop: a simulator, a launch, or a script that drives them
 BUSY_MARKS = ('gz sim', 'ros2 launch openfactory_', 'run_rubik.sh', 'run_chain.sh',
@@ -64,17 +66,38 @@ def record_service(shot_name):
     return f'/{TOPIC_PREFIX}/{shot_name}/record_video'
 
 
-def camera_sdf(shot_name, video, hfov_deg=None):
-    """SDF of the film camera of a shot: a static model with one camera sensor that looks along
-    the x axis of its link and records itself on request (service `record_service`)."""
-    hfov = math.radians(hfov_deg if hfov_deg is not None else video['hfov_deg'])
+def orbit_rate(shot):
+    """rad per second of simulated time at which the camera of a shot goes round its target,
+    counter-clockwise seen from above when positive; 0.0 for a fixed shot. `orbit.duration_s`
+    is the simulated time the take is expected to last and `orbit.revolutions` (default 1) how
+    many times round in that time: the take.json of a take says how many it made."""
+    orbit = shot.get('orbit')
+    if not orbit:
+        return 0.0
+    return 2 * math.pi * orbit.get('revolutions', 1) / orbit['duration_s']
+
+
+def orbit_position(shot, angle):
+    """Where the camera of a shot is after going `angle` rad round the vertical through the
+    point it looks at: same height, same distance."""
+    (px, py, pz), (cx, cy, _) = shot['position'], shot['look_at']
+    dx, dy = px - cx, py - cy
+    cos, sin = math.cos(angle), math.sin(angle)
+    return [cx + cos * dx - sin * dy, cy + sin * dx + cos * dy, pz]
+
+
+def spawn_pose(shot):
+    """(xyz, rpy) at which the model of `camera_sdf` is spawned: the camera itself for a fixed
+    shot, the foot of the vertical it turns about for an orbit."""
+    if orbit_rate(shot):
+        return [shot['look_at'][0], shot['look_at'][1], 0.0], (0.0, 0.0, 0.0)
+    return list(shot['position']), look_at(shot['position'], shot['look_at'])
+
+
+def _sensor_sdf(shot_name, video, shot, pose=''):
+    hfov = math.radians(shot.get('hfov_deg', video['hfov_deg']))
     near, far = video['clip']
-    return f'''<?xml version="1.0"?>
-<sdf version="1.9">
-  <model name="{escape(model_name(shot_name))}">
-    <static>true</static>
-    <link name="link">
-      <sensor name="camera" type="camera">
+    return f'''<sensor name="camera" type="camera">{pose}
         <always_on>true</always_on>
         <update_rate>{video['fps']}</update_rate>
         <topic>{escape(image_topic(shot_name))}</topic>
@@ -94,8 +117,59 @@ def camera_sdf(shot_name, video, hfov_deg=None):
           <fps>{video['fps']}</fps>
           <bitrate>{video['bitrate']}</bitrate>
         </plugin>
-      </sensor>
+      </sensor>'''
+
+
+def camera_sdf(shot_name, video, shot):
+    """SDF of the film camera of a shot, to be spawned at `spawn_pose`: one camera sensor that
+    looks along its x axis and records itself on request (service `record_service`), with no
+    body and no collision.
+
+    Fixed shot: a static model. Orbit: the sensor sits on a link that a joint turns about the
+    vertical through the point looked at, at a constant velocity held by Gazebo's
+    JointController. The camera then moves with simulated time, step by step with the frames
+    it renders, so the motion is even in the video however unevenly the simulator ran."""
+    name = escape(model_name(shot_name))
+    rate = orbit_rate(shot)
+    if not rate:
+        return f'''<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="{name}">
+    <static>true</static>
+    <link name="link">
+      {_sensor_sdf(shot_name, video, shot)}
     </link>
+  </model>
+</sdf>
+'''
+    (px, py, pz), (cx, cy, _) = shot['position'], shot['look_at']
+    roll, pitch, yaw = look_at(shot['position'], shot['look_at'])
+    pose = f'''
+        <pose>{px - cx:.6f} {py - cy:.6f} {pz:.6f} {roll:.6f} {pitch:.6f} {yaw:.6f}</pose>'''
+    return f'''<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="{name}">
+    <joint name="{ORBIT_JOINT}" type="revolute">
+      <parent>world</parent>
+      <child>link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+      </axis>
+    </joint>
+    <link name="link">
+      <gravity>false</gravity>
+      <inertial>
+        <mass>1.0</mass>
+        <inertia><ixx>1.0</ixx><iyy>1.0</iyy><izz>1.0</izz></inertia>
+      </inertial>
+      {_sensor_sdf(shot_name, video, shot, pose)}
+    </link>
+    <plugin filename="gz-sim-joint-controller-system"
+            name="gz::sim::systems::JointController">
+      <joint_name>{ORBIT_JOINT}</joint_name>
+      <initial_velocity>{rate:.9f}</initial_velocity>
+    </plugin>
   </model>
 </sdf>
 '''
@@ -124,6 +198,13 @@ def check_config(config):
             if len(shot.get(field) or ()) != 3:
                 raise ValueError(f'take {name}: shot.{field} must be [x, y, z]')
         look_at(shot['position'], shot['look_at'])
+        if shot.get('orbit'):
+            if not shot['orbit'].get('duration_s', 0) > 0:
+                raise ValueError(f'take {name}: shot.orbit.duration_s must be positive')
+            if math.hypot(*(p - c for p, c in zip(shot['position'][:2], shot['look_at']))) < 1e-6:
+                raise ValueError(f'take {name}: an orbit needs a camera beside its target')
+            if not orbit_rate(shot):
+                raise ValueError(f'take {name}: shot.orbit.revolutions must not be 0')
         if not take['scenario']:
             raise ValueError(f'take {name}: empty scenario')
         scenario(take)
@@ -166,6 +247,7 @@ def scenario(take, overrides=None):
 def take_record(name, take_name, params, video, shot, commit, sim_start, sim_end, results,
                 video_file):
     """What take.json holds. `results`: [(command, exit code)] of the scenario."""
+    duration = None if None in (sim_start, sim_end) else round(sim_end - sim_start, 3)
     return {
         'name': name,
         'take': take_name,
@@ -175,7 +257,9 @@ def take_record(name, take_name, params, video, shot, commit, sim_start, sim_end
         'shot': shot,
         'sim_start_s': sim_start,
         'sim_end_s': sim_end,
-        'sim_duration_s': None if None in (sim_start, sim_end) else round(sim_end - sim_start, 3),
+        'sim_duration_s': duration,
+        'orbit_revolutions': (round(orbit_rate(shot) * duration / (2 * math.pi), 3)
+                              if orbit_rate(shot) and duration is not None else None),
         'scenario': [{'command': command, 'exit_code': code} for command, code in results],
         'success': bool(results) and all(code == 0 for _, code in results),
         'video_file': video_file,

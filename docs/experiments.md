@@ -592,3 +592,24 @@ python3 scripts/film_edit.py fetch ring && python3 scripts/film_edit.py edit rin
 
 With the film camera at 1280×720 the Rubik's cube cell ran at 0.30 of real time over the take and the ring of three arms made 41 handovers per hour of wall time (80 and 108 without it, E-006); simulated times are what they were (a handover of the ring about 26 s). No timeout was met at that speed.
 
+### Orbit takes (2026-11-15, not results)
+
+The same two runs filmed again with an orbit shot (D-029, update of 2026-11-15): the film camera goes once round the scene while the run lasts, turned by a joint of its own model on simulated time. Same seeds and commands as above, so again no new evidence for E-006 and E-007. Code: `src/` as in `f88de0c`; `take.json` records `2853b76`, with the orbit changes to `scripts/film.py`, `film_shots.py` and `config/film.yaml` not yet committed when the takes ran (they are the commit that adds this section).
+
+| Take | Run | Outcome | Video |
+|---|---|---|---|
+| `rubik`, as `rubik_orbit` | `film_rubik_orbit` (`rubik_benchmark.py --part solve --set dev --index 0`) | solved, by the cell and by ground truth: 50 operations (20 turns, 30 flips) and two scans, 0 cell failures, 0 states in collision; 677.0 s simulated in 2246.5 s of wall time | 684.1 s, 1280×720, 253.3 MB; 1.006 revolutions |
+| `ring`, as `ring_orbit` | `phase6_relay_n3_dev_20261115T120925Z_s6000` (`--arms 3 --set dev`) | passed: 20 of 20 handovers, 0 of 16 508 states in collision, 0 undetected failures, 0 false alarms, no object lost | 531.4 s, 1280×720, 239.9 MB; 1.012 revolutions |
+
+```bash
+# [VM] both takes one after the other, detached; then wait for ~/film_orbit.done
+scripts/vm/run_chain.sh film_orbit \
+  "film_rubik_orbit|--script film.py take rubik --name rubik_orbit --set run_id=film_rubik_orbit" \
+  "film_ring_orbit|--script film.py take ring --name ring_orbit"
+# [MAC]
+python3 scripts/film_edit.py fetch rubik_orbit && python3 scripts/film_edit.py edit rubik_orbit --speed 8   # 86 s
+python3 scripts/film_edit.py fetch ring_orbit && python3 scripts/film_edit.py edit ring_orbit --speed 6     # 89 s
+```
+
+Eight frames spread over each video were looked at: the camera goes all the way round and the cube, the nest, the bins and the arms stay in the frame. Two things the orbit costs. The world has one directional light and no shadows, so from the far side the arm is seen against the light and is dark (about a third of the Rubik's cube video); no fill light was added, because it would change what the cell's own camera sees. And the moving picture compresses less well: the ring's file doubled (118 to 240 MB at the same bitrate setting). The speed of the simulation did not change (0.30 of real time for the cube, 42 handovers per hour for the ring).
+

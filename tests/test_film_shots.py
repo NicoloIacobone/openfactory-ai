@@ -13,6 +13,8 @@ import scene_objects as so
 REPO = Path(__file__).resolve().parents[1]
 VIDEO = {'width': 1280, 'height': 720, 'fps': 15, 'bitrate': 4000000, 'hfov_deg': 50.0,
          'clip': [0.05, 20.0]}
+SHOT = {'position': [2.9, 0.0, 2.6], 'look_at': [0.0, 0.0, 1.25]}
+ORBIT = {**SHOT, 'orbit': {'duration_s': 600}}
 
 
 def _take(**overrides):
@@ -55,7 +57,7 @@ def test_a_shot_needs_a_target_away_from_its_position():
 
 
 def test_camera_sdf_is_a_bodiless_static_model_that_records_on_sim_time():
-    model = ET.fromstring(fs.camera_sdf('wide', VIDEO)).find('model')
+    model = ET.fromstring(fs.camera_sdf('wide', VIDEO, SHOT)).find('model')
     assert model.get('name') == 'film_camera_wide'
     assert model.findtext('static') == 'true'
     link = model.find('link')
@@ -76,8 +78,63 @@ def test_camera_sdf_is_a_bodiless_static_model_that_records_on_sim_time():
 
 
 def test_a_shot_may_have_its_own_field_of_view():
-    sensor = ET.fromstring(fs.camera_sdf('close', VIDEO, hfov_deg=30.0)).find('model/link/sensor')
+    sdf = fs.camera_sdf('close', VIDEO, {**SHOT, 'hfov_deg': 30.0})
+    sensor = ET.fromstring(sdf).find('model/link/sensor')
     assert float(sensor.findtext('camera/horizontal_fov')) == pytest.approx(math.radians(30.0))
+
+
+def test_a_fixed_shot_is_spawned_where_the_camera_stands():
+    xyz, rpy = fs.spawn_pose(SHOT)
+    assert xyz == SHOT['position']
+    assert rpy == fs.look_at(SHOT['position'], SHOT['look_at'])
+    assert fs.orbit_rate(SHOT) == 0.0
+
+
+def test_an_orbit_goes_once_round_in_the_time_the_take_should_last():
+    assert fs.orbit_rate(ORBIT) == pytest.approx(2 * math.pi / 600)
+    twice_back = {**SHOT, 'orbit': {'duration_s': 600, 'revolutions': -2}}
+    assert fs.orbit_rate(twice_back) == pytest.approx(-4 * math.pi / 600)
+
+
+def test_an_orbit_keeps_height_and_distance_and_turns_counter_clockwise():
+    shot = {'position': [1.36, 0.5, 1.4], 'look_at': [0.36, 0.5, 1.0]}
+    assert fs.orbit_position(shot, 0.0) == pytest.approx(shot['position'])
+    assert fs.orbit_position(shot, math.pi / 2) == pytest.approx([0.36, 1.5, 1.4])
+    assert fs.orbit_position(shot, math.pi) == pytest.approx([-0.64, 0.5, 1.4])
+    assert fs.orbit_position(shot, 2 * math.pi) == pytest.approx(shot['position'])
+
+
+def test_an_orbit_camera_turns_on_a_joint_about_the_vertical_through_its_target():
+    model = ET.fromstring(fs.camera_sdf('ring', VIDEO, ORBIT)).find('model')
+    assert model.find('static') is None
+    joint = model.find('joint')
+    assert joint.get('type') == 'revolute'
+    assert joint.findtext('parent') == 'world' and joint.findtext('child') == 'link'
+    assert joint.findtext('axis/xyz').split() == ['0', '0', '1']
+    link = model.find('link')
+    assert link.findtext('gravity') == 'false'
+    assert link.find('visual') is None and link.find('collision') is None
+    plugin = model.find('plugin')
+    assert plugin.get('filename') == 'gz-sim-joint-controller-system'
+    assert plugin.findtext('joint_name') == joint.get('name')
+    assert float(plugin.findtext('initial_velocity')) == pytest.approx(2 * math.pi / 600)
+    # spawned at the foot of the axis, the sensor out on the circle, looking at the target
+    xyz, rpy = fs.spawn_pose(ORBIT)
+    assert xyz == [0.0, 0.0, 0.0] and rpy == (0.0, 0.0, 0.0)
+    pose = [float(v) for v in link.findtext('sensor/pose').split()]
+    assert pose[:3] == pytest.approx([2.9, 0.0, 2.6])
+    assert pose[3:] == pytest.approx(fs.look_at(ORBIT['position'], ORBIT['look_at']), abs=1e-6)
+    assert link.find('sensor/plugin').findtext('use_sim_time') == 'true'
+
+
+def test_the_take_record_says_how_far_round_the_camera_went():
+    def record(shot, end):
+        return fs.take_record('n', 'ring', {}, VIDEO, shot, 'abc', 100.0, end, [('a', 0)], 'f')
+
+    assert record(ORBIT, 700.0)['orbit_revolutions'] == 1.0
+    assert record(ORBIT, 550.0)['orbit_revolutions'] == 0.75
+    assert record(SHOT, 700.0)['orbit_revolutions'] is None
+    assert record(ORBIT, None)['orbit_revolutions'] is None
 
 
 def test_the_config_of_the_repo_is_valid():
@@ -93,6 +150,12 @@ def test_the_config_of_the_repo_is_valid():
     ({'video': VIDEO, 'takes': {'a': _take(scenario=[])}}, 'empty scenario'),
     ({'video': VIDEO, 'takes': {'a': _take(shot={'position': [0, 0, 1]})}}, 'look_at'),
     ({'video': VIDEO, 'takes': {'a': {'launch': [], 'shot': {}}}}, 'missing'),
+    ({'video': VIDEO, 'takes': {'a': _take(shot={**SHOT, 'orbit': {'duration_s': 0}})}},
+     'duration_s'),
+    ({'video': VIDEO, 'takes': {'a': _take(shot={
+        'position': [0, 0, 3], 'look_at': [0, 0, 1], 'orbit': {'duration_s': 60}})}}, 'beside'),
+    ({'video': VIDEO, 'takes': {'a': _take(shot={
+        **SHOT, 'orbit': {'duration_s': 60, 'revolutions': 0}})}}, 'revolutions'),
 ])
 def test_bad_configs_are_rejected(config, message):
     with pytest.raises(ValueError, match=message):

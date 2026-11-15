@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Film a real run of a system from a camera created in the running Gazebo world (D-029).
 
-The film camera is a static model with no body (film_shots.camera_sdf): it is spawned for the
-take and removed after it, it is not bridged to ROS and nothing in perception or manipulation
-reads it. Gazebo's CameraVideoRecorder system encodes its frames on simulated time, so the
-video plays at the speed of the simulated system however slowly the VM ran it.
+The film camera is a model with no body (film_shots.camera_sdf), standing or going round
+the point it looks at (an orbit shot): it is spawned for the take and removed after it, it
+is not bridged to ROS and nothing in perception or manipulation reads it. Gazebo's
+CameraVideoRecorder system encodes its frames on simulated time, so the video plays at the
+speed of the simulated system however slowly the VM ran it.
 
 Takes are in scripts/config/film.yaml. Run in the VM:
     python3 scripts/film.py still TAKE [--position X Y Z] [--look-at X Y Z] [--hfov DEG]
-        one frame of the shot from the running system, to frame it
-    python3 scripts/film.py take TAKE [--name NAME] [--set KEY=VALUE ...]
+                                       [--angle DEG]
+        one frame of the shot from the running system, to frame it; --angle: from that far
+        round its orbit
+    python3 scripts/film.py take TAKE [--name NAME] [--set KEY=VALUE ...] [--fixed]
         the whole take: launches the system without a window, records, runs the scenario,
         stops. It refuses to start while something else runs in the VM, unless --replace.
         Detached, as any benchmark:
@@ -22,6 +25,7 @@ times, exit codes of the scenario). scripts/film_edit.py, on the Mac, copies and
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -58,10 +62,9 @@ class Film:
         self.node = self.scene.node
 
     def spawn(self):
-        sdf = fs.camera_sdf(self.name, self.video, self.shot.get('hfov_deg'))
-        rpy = fs.look_at(self.shot['position'], self.shot['look_at'])
-        self.scene.spawn(fs.model_name(self.name), sdf, self.shot['position'], rpy,
-                         timeout_ms=SERVICE_TIMEOUT_MS)
+        xyz, rpy = fs.spawn_pose(self.shot)
+        self.scene.spawn(fs.model_name(self.name), fs.camera_sdf(self.name, self.video, self.shot),
+                         xyz, rpy, timeout_ms=SERVICE_TIMEOUT_MS)
 
     def remove(self):
         self.scene.remove(fs.model_name(self.name))
@@ -138,9 +141,16 @@ def stop_cell():
 
 
 def running():
-    """What a take would stop (film_shots.busy), this process and its runner left out."""
+    """What a take would stop (film_shots.busy), this process and its ancestors left out."""
+    parents = dict(
+        map(int, line.split()) for line in subprocess.run(
+            ['ps', '-eo', 'pid=,ppid='], capture_output=True, text=True).stdout.splitlines())
+    own, pid = set(), os.getpid()
+    while pid in parents and pid not in own:        # this process and what started it: its
+        own.add(pid)                                # runner, a chain of takes
+        pid = parents[pid]
     out = subprocess.run(['ps', '-eo', 'pid,args'], capture_output=True, text=True).stdout
-    return fs.busy(out.splitlines()[1:], own_pids={os.getpid(), os.getppid()})
+    return fs.busy(out.splitlines()[1:], own_pids=own)
 
 
 def launch(arguments):
@@ -156,8 +166,9 @@ def say(text):
     print(text, flush=True)
 
 
-def run_take(config, take_name, name, overrides, replace=False):
+def run_take(config, take_name, name, overrides, replace=False, fixed=False):
     take, video = config['takes'][take_name], config['video']
+    shot = {key: value for key, value in take['shot'].items() if not (fixed and key == 'orbit')}
     params = fs.take_params(take, overrides)
     commands = fs.scenario(take, overrides)
     commit = tl.git_commit(REPO)        # of the code that runs, not of what HEAD is at the end
@@ -177,13 +188,15 @@ def run_take(config, take_name, name, overrides, replace=False):
     launch(arguments)
     time.sleep(take['warmup_s'])
 
-    film = Film(take_name, video, take['shot'])
+    film = Film(take_name, video, shot)
     results, sim_start, sim_end, error = [], None, None, None
     try:
         film.spawn()
         film.start(video_file)
         sim_start = film.sim_time()
-        say(f'recording from simulated time {sim_start:.1f} s')
+        say(f'recording from simulated time {sim_start:.1f} s'
+            + (f", orbit of {fs.orbit_rate(shot) and 2 * math.pi / abs(fs.orbit_rate(shot)):.0f} s"
+               if fs.orbit_rate(shot) else ''))
         time.sleep(config.get('lead_in_s', 0.0))
         env = scenario_env(take)
         for command in commands:
@@ -205,7 +218,7 @@ def run_take(config, take_name, name, overrides, replace=False):
     finally:
         stop_cell()
 
-    record = fs.take_record(name, take_name, params, video, take['shot'], commit,
+    record = fs.take_record(name, take_name, params, video, shot, commit,
                             sim_start, sim_end, results, video_file.name)
     if error:
         record.update(success=False, error=error)
@@ -223,6 +236,8 @@ def main():
     still.add_argument('--position', type=float, nargs=3, metavar=('X', 'Y', 'Z'))
     still.add_argument('--look-at', type=float, nargs=3, metavar=('X', 'Y', 'Z'))
     still.add_argument('--hfov', type=float, help='degrees')
+    still.add_argument('--angle', type=float, default=0.0,
+                       help='degrees round the orbit of the shot, to see what it will pass')
     still.add_argument('--out', type=Path, help='PNG file (default: videos/stills/TAKE.png)')
     whole = sub.add_parser('take', help='launch, record, run the scenario, stop')
     whole.add_argument('take')
@@ -231,6 +246,8 @@ def main():
                        help='override a parameter of the take')
     whole.add_argument('--replace', action='store_true',
                        help='stop whatever is running in the VM first')
+    whole.add_argument('--fixed', action='store_true',
+                       help='keep the camera where the shot starts, without its orbit')
     start = sub.add_parser('start', help='start recording a running system')
     start.add_argument('take')
     start.add_argument('--name', help='name of the output (default: the take)')
@@ -245,13 +262,16 @@ def main():
 
     if args.command == 'take':
         return run_take(config, args.take, args.name or args.take,
-                        fs.parse_overrides(args.set), args.replace)
+                        fs.parse_overrides(args.set), args.replace, args.fixed)
 
     shot = dict(take['shot'])
     if args.command == 'still':
         shot.update({key: value for key, value in (
             ('position', args.position), ('look_at', args.look_at), ('hfov_deg', args.hfov))
             if value is not None})
+        # a still is always taken from a camera that stands, at an angle of the orbit
+        shot['position'] = fs.orbit_position(shot, math.radians(args.angle))
+        shot.pop('orbit', None)
     film = Film(args.take, video, shot)
     if args.command == 'still':
         path = args.out or OUT / 'stills' / f'{args.take}.png'
@@ -260,7 +280,8 @@ def main():
             film.still(path)
         finally:
             film.remove()
-        print(f"{path}: position {shot['position']} look_at {shot['look_at']}")
+        print(f"{path}: position {[round(v, 3) for v in shot['position']]} "
+              f"look_at {shot['look_at']}")
     elif args.command == 'start':
         name = args.name or args.take
         video_file = OUT / name / f'{name}.{fs.VIDEO_FORMAT}'

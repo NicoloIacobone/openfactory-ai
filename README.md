@@ -128,7 +128,7 @@ python3 <repo>/scripts/rubik_benchmark.py --part solve --set dev --index 0 --run
 ```bash
 # Video of a real run (D-029): the system is launched without a window, a film camera is created
 # in the world and Gazebo records it on simulated time while a benchmark harness runs
-python3 <repo>/scripts/film.py take rubik                        # or `ring`; takes are in scripts/config/film.yaml
+python3 <repo>/scripts/film.py take rubik                        # or `ring`; takes are in scripts/config/film.yaml. The camera goes once round the scene (`--fixed`: it stands)
 python3 <repo>/scripts/film_edit.py fetch rubik                  # on the machine with the repo and ffmpeg: copy it to data/videos/
 python3 <repo>/scripts/film_edit.py edit rubik --speed 8         # rubik_x8.mp4; --trim START END, --gif
 ```

@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.svg">
+  <img src="docs/banner-light.svg" alt="OpenFactory AI: the name as links and joints, and a robot arm over a bin" width="100%">
+</picture>
+
 # OpenFactory AI
 
 [![tests](https://github.com/NicoloIacobone/openfactory-ai/actions/workflows/tests.yml/badge.svg)](https://github.com/NicoloIacobone/openfactory-ai/actions/workflows/tests.yml)
